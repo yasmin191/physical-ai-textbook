@@ -1,9 +1,10 @@
 import { createAuthClient } from "better-auth/react";
 
 // Auth server URL - change this for production
-const AUTH_SERVER_URL = process.env.NODE_ENV === "production"
-  ? "https://your-auth-server.vercel.app"  // Update this when you deploy the auth server
-  : "http://localhost:3001";
+const AUTH_SERVER_URL =
+  process.env.NODE_ENV === "production"
+    ? "https://physical-ai-auth-server.vercel.app" // Production auth server
+    : "http://localhost:3001";
 
 export const authClient = createAuthClient({
   baseURL: AUTH_SERVER_URL,
@@ -26,7 +27,9 @@ export interface UserBackground {
 }
 
 // Helper to update user background
-export async function updateUserBackground(background: UserBackground): Promise<boolean> {
+export async function updateUserBackground(
+  background: UserBackground,
+): Promise<boolean> {
   try {
     const response = await fetch(`${AUTH_SERVER_URL}/api/user/background`, {
       method: "POST",

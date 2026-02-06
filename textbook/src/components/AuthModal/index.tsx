@@ -24,7 +24,7 @@ interface BackgroundData {
 
 const AUTH_SERVER_URL =
   typeof window !== "undefined" && window.location.hostname !== "localhost"
-    ? "https://physical-ai-auth.vercel.app" // Update when deployed
+    ? "https://physical-ai-auth-server.vercel.app" // Production auth server
     : "http://localhost:3001";
 
 export default function AuthModal({
@@ -61,12 +61,15 @@ export default function AuthModal({
     setError("");
 
     try {
-      const response = await fetch(`${AUTH_SERVER_URL}/api/auth/sign-in/email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await fetch(
+        `${AUTH_SERVER_URL}/api/auth/sign-in/email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password }),
+        },
+      );
 
       const data = await response.json();
 
@@ -90,12 +93,15 @@ export default function AuthModal({
     setError("");
 
     try {
-      const response = await fetch(`${AUTH_SERVER_URL}/api/auth/sign-up/email`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ email, password, name }),
-      });
+      const response = await fetch(
+        `${AUTH_SERVER_URL}/api/auth/sign-up/email`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ email, password, name }),
+        },
+      );
 
       const data = await response.json();
 
@@ -141,10 +147,7 @@ export default function AuthModal({
     }
   };
 
-  const toggleArrayItem = (
-    field: keyof BackgroundData,
-    item: string
-  ) => {
+  const toggleArrayItem = (field: keyof BackgroundData, item: string) => {
     const current = background[field] as string[];
     if (current.includes(item)) {
       setBackground({
@@ -279,7 +282,10 @@ export default function AuthModal({
           <select
             value={background.programmingExperience}
             onChange={(e) =>
-              setBackground({ ...background, programmingExperience: e.target.value })
+              setBackground({
+                ...background,
+                programmingExperience: e.target.value,
+              })
             }
           >
             <option value="none">No experience</option>
@@ -292,16 +298,20 @@ export default function AuthModal({
         <div className={styles.field}>
           <label>Programming Languages (select all that apply)</label>
           <div className={styles.checkboxGroup}>
-            {["Python", "C++", "JavaScript", "Java", "Rust", "Go"].map((lang) => (
-              <label key={lang} className={styles.checkbox}>
-                <input
-                  type="checkbox"
-                  checked={background.programmingLanguages.includes(lang)}
-                  onChange={() => toggleArrayItem("programmingLanguages", lang)}
-                />
-                {lang}
-              </label>
-            ))}
+            {["Python", "C++", "JavaScript", "Java", "Rust", "Go"].map(
+              (lang) => (
+                <label key={lang} className={styles.checkbox}>
+                  <input
+                    type="checkbox"
+                    checked={background.programmingLanguages.includes(lang)}
+                    onChange={() =>
+                      toggleArrayItem("programmingLanguages", lang)
+                    }
+                  />
+                  {lang}
+                </label>
+              ),
+            )}
           </div>
         </div>
 
@@ -344,7 +354,10 @@ export default function AuthModal({
           <select
             value={background.roboticsExperience}
             onChange={(e) =>
-              setBackground({ ...background, roboticsExperience: e.target.value })
+              setBackground({
+                ...background,
+                roboticsExperience: e.target.value,
+              })
             }
           >
             <option value="none">No experience</option>
@@ -357,18 +370,25 @@ export default function AuthModal({
         <div className={styles.field}>
           <label>Hardware Platforms (select all that apply)</label>
           <div className={styles.checkboxGroup}>
-            {["Arduino", "Raspberry Pi", "NVIDIA Jetson", "ESP32", "STM32", "ROS Robots"].map(
-              (platform) => (
-                <label key={platform} className={styles.checkbox}>
-                  <input
-                    type="checkbox"
-                    checked={background.hardwarePlatforms.includes(platform)}
-                    onChange={() => toggleArrayItem("hardwarePlatforms", platform)}
-                  />
-                  {platform}
-                </label>
-              )
-            )}
+            {[
+              "Arduino",
+              "Raspberry Pi",
+              "NVIDIA Jetson",
+              "ESP32",
+              "STM32",
+              "ROS Robots",
+            ].map((platform) => (
+              <label key={platform} className={styles.checkbox}>
+                <input
+                  type="checkbox"
+                  checked={background.hardwarePlatforms.includes(platform)}
+                  onChange={() =>
+                    toggleArrayItem("hardwarePlatforms", platform)
+                  }
+                />
+                {platform}
+              </label>
+            ))}
           </div>
         </div>
 

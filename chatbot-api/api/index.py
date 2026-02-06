@@ -5,10 +5,16 @@ from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
 
-# CORS middleware
+# CORS middleware - allow all origins for the chatbot
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[
+        "*",
+        "https://physical-ai-textbook-one-khaki.vercel.app",
+        "https://physical-ai-textbook.vercel.app",
+        "https://yasmin191.github.io",
+        "http://localhost:3000",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

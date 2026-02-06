@@ -1,50 +1,28 @@
-from contextlib import asynccontextmanager
+# Minimal imports to avoid startup crashes
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from mangum import Mangum
 
-from app.config import settings
-from app.routes import chat
-from app.services.database_service import init_database
-from app.services.qdrant_service import ensure_collection_exists
-
-
-@asynccontextmanager
-async def lifespan(app: FastAPI):
-    """Initialize services on startup."""
-    try:
-        init_database()
-        print("Database initialized")
-    except Exception as e:
-        print(f"Database initialization failed: {e}")
-
-    try:
-        ensure_collection_exists()
-        print("Qdrant collection ready")
-    except Exception as e:
-        print(f"Qdrant initialization failed: {e}")
-
-    yield
-
+# Get frontend URLs from environment
+frontend_urls = os.getenv(
+    "FRONTEND_URLS",
+    "http://localhost:3000,https://yasmin191.github.io,https://physical-ai-textbook.vercel.app",
+).split(",")
 
 app = FastAPI(
     title="Physical AI Textbook RAG Chatbot",
     version="1.0.0",
-    lifespan=lifespan,
 )
 
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=settings.FRONTEND_URLS,
+    allow_origins=["*"],  # Allow all for debugging
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Include routes
-app.include_router(chat.router, prefix="/api/v1")
 
 
 @app.get("/")
@@ -61,5 +39,55 @@ async def health():
     return {"status": "ok"}
 
 
+@app.get("/api/v1/test")
+async def test():
+    return {"message": "API is working"}
+
+
+# Lazy load the chat routes to avoid import errors at startup
+@app.post("/api/v1/chat/")
+async def chat_endpoint(request: dict):
+    """Chat endpoint with lazy loading."""
+    try:
+        from app.services.rag_service import chat
+
+        message = request.get("message", "")
+        session_id = request.get("session_id", "default")
+        selected_text = request.get("selected_text")
+
+        result = chat(session_id, message, selected_text)
+        return result
+    except Exception as e:
+        return {
+            "message": f"I apologize, but I encountered an error: {str(e)}. The RAG service may still be initializing.",
+            "sources": [],
+            "error": str(e),
+        }
+
+
+@app.post("/api/v1/chat/selected-text")
+async def selected_text_endpoint(request: dict):
+    """Answer questions about selected text."""
+    try:
+        from app.services.rag_service import answer_selected_text
+
+        selected_text = request.get("selected_text", "")
+        question = request.get("question")
+
+        result = answer_selected_text(selected_text, question)
+        return result
+    except Exception as e:
+        return {
+            "message": f"I apologize, but I encountered an error: {str(e)}",
+            "sources": [],
+            "error": str(e),
+        }
+
+
 # Handler for Vercel serverless
-handler = Mangum(app)
+try:
+    from mangum import Mangum
+
+    handler = Mangum(app)
+except ImportError:
+    handler = None

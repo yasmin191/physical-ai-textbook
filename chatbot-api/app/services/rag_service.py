@@ -1,10 +1,13 @@
+"""RAG service for chatbot - simplified for serverless."""
+
 from typing import Optional
 
 from openai import OpenAI
 
 from app.config import settings
-from app.services.database_service import get_session_messages, save_message
-from app.services.qdrant_service import search_documents
+
+# In-memory session storage (stateless on serverless, but works for single requests)
+_sessions = {}
 
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
@@ -51,6 +54,28 @@ def build_context(documents: list[dict]) -> str:
     return "\n\n---\n\n".join(context_parts)
 
 
+def get_session_messages(session_id: str, limit: int = 10) -> list[dict]:
+    """Get messages for a session from memory."""
+    return _sessions.get(session_id, [])[-limit:]
+
+
+def save_message(
+    session_id: str, role: str, content: str, metadata: dict = None
+) -> dict:
+    """Save a message to session memory."""
+    if session_id not in _sessions:
+        _sessions[session_id] = []
+
+    msg = {
+        "id": len(_sessions[session_id]) + 1,
+        "role": role,
+        "content": content,
+        "metadata": metadata,
+    }
+    _sessions[session_id].append(msg)
+    return msg
+
+
 def chat(
     session_id: str,
     user_message: str,
@@ -59,13 +84,22 @@ def chat(
 ) -> dict:
     """Process a chat message and return AI response."""
 
-    # If user selected text, use it as additional context
-    query = user_message
-    if selected_text:
-        query = f"Based on this selected text: '{selected_text}'\n\nUser question: {user_message}"
+    # Try to import qdrant search, but handle gracefully if not available
+    documents = []
+    try:
+        from app.services.qdrant_service import search_documents
 
-    # Search for relevant documents
-    documents = search_documents(query=query, limit=5, chapter_filter=chapter_filter)
+        # If user selected text, use it as additional context
+        query = user_message
+        if selected_text:
+            query = f"Based on this selected text: '{selected_text}'\n\nUser question: {user_message}"
+
+        # Search for relevant documents
+        documents = search_documents(
+            query=query, limit=5, chapter_filter=chapter_filter
+        )
+    except Exception as e:
+        print(f"Qdrant search failed: {e}")
 
     # Build context from retrieved documents
     context = build_context(documents)
@@ -83,7 +117,7 @@ def chat(
     # Add current user message
     messages.append({"role": "user", "content": user_message})
 
-    # Save user message to database
+    # Save user message
     save_message(
         session_id,
         "user",
@@ -98,7 +132,7 @@ def chat(
 
     assistant_message = response.choices[0].message.content
 
-    # Save assistant message to database
+    # Save assistant message
     saved_msg = save_message(
         session_id,
         "assistant",
@@ -127,9 +161,15 @@ def chat(
 def answer_selected_text(selected_text: str, question: Optional[str] = None) -> dict:
     """Answer a question about selected text without session context."""
 
-    # Search for related content to provide additional context
-    search_query = selected_text[:500]  # Limit search query length
-    documents = search_documents(query=search_query, limit=3)
+    documents = []
+    try:
+        from app.services.qdrant_service import search_documents
+
+        # Search for related content to provide additional context
+        search_query = selected_text[:500]  # Limit search query length
+        documents = search_documents(query=search_query, limit=3)
+    except Exception as e:
+        print(f"Qdrant search failed: {e}")
 
     context = build_context(documents)
 

@@ -13,13 +13,13 @@ const config: Config = {
   },
 
   // GitHub Pages deployment
-  url: "https://panaversity.github.io",
-  baseUrl: "/hackathon_1/",
+  url: "https://yasmin191.github.io",
+  baseUrl: "/physical-ai-textbook/",
 
-  organizationName: "panaversity",
-  projectName: "hackathon_1",
-  deploymentBranch: "gh-pages",
+  organizationName: "yasmin191",
+  projectName: "physical-ai-textbook",
   trailingSlash: false,
+  deploymentBranch: "gh-pages",
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",

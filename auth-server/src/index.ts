@@ -21,7 +21,7 @@ app.use(
     credentials: true,
     methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
-  })
+  }),
 );
 
 // Parse JSON bodies
@@ -34,72 +34,6 @@ app.get("/health", (req, res) => {
 
 // Better Auth handler - handles all /api/auth/* routes
 app.all("/api/auth/*", toNodeHandler(auth));
-
-// User profile endpoint to get/update background info
-app.get("/api/user/profile", async (req, res) => {
-  try {
-    const session = await auth.api.getSession({
-      headers: req.headers as any,
-    });
-
-    if (!session) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    res.json({ user: session.user });
-  } catch (error) {
-    console.error("Profile error:", error);
-    res.status(500).json({ error: "Failed to get profile" });
-  }
-});
-
-// Update user background
-app.post("/api/user/background", async (req, res) => {
-  try {
-    const session = await auth.api.getSession({
-      headers: req.headers as any,
-    });
-
-    if (!session) {
-      return res.status(401).json({ error: "Unauthorized" });
-    }
-
-    const {
-      programmingExperience,
-      programmingLanguages,
-      rosExperience,
-      aiMlExperience,
-      roboticsExperience,
-      hardwarePlatforms,
-      hasJetson,
-      hasRobot,
-      learningGoals,
-      preferredPace,
-    } = req.body;
-
-    // Update user with background info
-    await auth.api.updateUser({
-      body: {
-        programmingExperience,
-        programmingLanguages: JSON.stringify(programmingLanguages),
-        rosExperience,
-        aiMlExperience,
-        roboticsExperience,
-        hardwarePlatforms: JSON.stringify(hardwarePlatforms),
-        hasJetson,
-        hasRobot,
-        learningGoals: JSON.stringify(learningGoals),
-        preferredPace,
-      },
-      headers: req.headers as any,
-    });
-
-    res.json({ success: true });
-  } catch (error) {
-    console.error("Background update error:", error);
-    res.status(500).json({ error: "Failed to update background" });
-  }
-});
 
 app.listen(PORT, () => {
   console.log(`Auth server running on http://localhost:${PORT}`);

@@ -1,16 +1,16 @@
 import { betterAuth } from "better-auth";
 import { createClient } from "@libsql/client";
 
-// Use Turso/LibSQL for serverless compatibility
-// For hackathon demo, using in-memory SQLite
-const client = createClient({
-  url: process.env.DATABASE_URL || "file:local.db",
+// Turso database client
+const tursoClient = createClient({
+  url: process.env.TURSO_DATABASE_URL || "",
+  authToken: process.env.TURSO_AUTH_TOKEN || "",
 });
 
 export const auth = betterAuth({
   database: {
-    provider: "sqlite",
-    url: process.env.DATABASE_URL || "file:local.db",
+    type: "sqlite",
+    client: tursoClient as any,
   },
   emailAndPassword: {
     enabled: true,

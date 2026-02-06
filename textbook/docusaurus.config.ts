@@ -12,13 +12,14 @@ const config: Config = {
     v4: true,
   },
 
-  // Vercel deployment
-  url: "https://physical-ai-textbook.vercel.app",
-  baseUrl: "/",
+  // GitHub Pages deployment
+  url: "https://yasmin191.github.io",
+  baseUrl: "/physical-ai-textbook/",
 
   organizationName: "yasmin191",
   projectName: "physical-ai-textbook",
   trailingSlash: false,
+  deploymentBranch: "gh-pages",
 
   onBrokenLinks: "throw",
   onBrokenMarkdownLinks: "warn",

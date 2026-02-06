@@ -4,10 +4,6 @@ on:
   push:
     branches:
       - main
-    paths:
-      - 'textbook/**'
-      - '.github/workflows/deploy.yml'
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -31,17 +27,15 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
-          cache: 'npm'
+          node-version: "20"
+          cache: "npm"
           cache-dependency-path: textbook/package-lock.json
 
       - name: Install dependencies
         run: npm ci
 
-      - name: Build website
+      - name: Build
         run: npm run build
-        env:
-          NODE_ENV: production
 
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3

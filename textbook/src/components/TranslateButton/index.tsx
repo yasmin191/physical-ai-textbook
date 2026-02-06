@@ -27,6 +27,8 @@ function TranslateIcon() {
   );
 }
 
+const CURRENT_USER_KEY = "physical_ai_current_user";
+
 export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   const [isTranslated, setIsTranslated] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -38,6 +40,10 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   useEffect(() => {
     injectUrduFont();
   }, []);
+
+  const isLoggedIn = (): boolean => {
+    return !!localStorage.getItem(CURRENT_USER_KEY);
+  };
 
   const getContentElement = useCallback(() => {
     // Find the main content container in Docusaurus - try multiple selectors
@@ -64,6 +70,11 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   }, []);
 
   const handleTranslate = async () => {
+    if (!isLoggedIn()) {
+      setError("Please sign in to use translation");
+      return;
+    }
+
     const contentEl = getContentElement();
     if (!contentEl) {
       setError("Could not find content to translate");

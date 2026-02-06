@@ -1,14 +1,5 @@
-# Minimal imports to avoid startup crashes
-import os
-
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-
-# Get frontend URLs from environment
-frontend_urls = os.getenv(
-    "FRONTEND_URLS",
-    "http://localhost:3000,https://yasmin191.github.io,https://physical-ai-textbook.vercel.app",
-).split(",")
 
 app = FastAPI(
     title="Physical AI Textbook RAG Chatbot",
@@ -18,7 +9,7 @@ app = FastAPI(
 # CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all for debugging
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -44,50 +35,82 @@ async def test():
     return {"message": "API is working"}
 
 
-# Lazy load the chat routes to avoid import errors at startup
 @app.post("/api/v1/chat/")
 async def chat_endpoint(request: dict):
-    """Chat endpoint with lazy loading."""
+    """Chat endpoint."""
     try:
-        from app.services.rag_service import chat
+        import os
+
+        from openai import OpenAI
+
+        api_key = os.getenv("OPENAI_API_KEY", "")
+        if not api_key:
+            return {"message": "OpenAI API key not configured", "sources": []}
+
+        client = OpenAI(api_key=api_key)
 
         message = request.get("message", "")
-        session_id = request.get("session_id", "default")
-        selected_text = request.get("selected_text")
 
-        result = chat(session_id, message, selected_text)
-        return result
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant for a Physical AI & Humanoid Robotics textbook. Answer questions about ROS 2, robotics, simulation, and AI.",
+                },
+                {"role": "user", "content": message},
+            ],
+            temperature=0.7,
+            max_tokens=500,
+        )
+
+        return {"message": response.choices[0].message.content, "sources": []}
     except Exception as e:
-        return {
-            "message": f"I apologize, but I encountered an error: {str(e)}. The RAG service may still be initializing.",
-            "sources": [],
-            "error": str(e),
-        }
+        return {"message": f"Error: {str(e)}", "sources": [], "error": str(e)}
 
 
 @app.post("/api/v1/chat/selected-text")
 async def selected_text_endpoint(request: dict):
     """Answer questions about selected text."""
     try:
-        from app.services.rag_service import answer_selected_text
+        import os
+        from openai import OpenAI
+
+        api_key = os.getenv("OPENAI_API_KEY", "")
+        if not api_key:
+            return {"message": "OpenAI API key not configured", "sources": []}
+
+        client = OpenAI(api_key=api_key)
 
         selected_text = request.get("selected_text", "")
-        question = request.get("question")
+        question = request.get("question", "Please explain this text.")
 
-        result = answer_selected_text(selected_text, question)
-        return result
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a helpful assistant for a Physical AI & Humanoid Robotics textbook. Explain the selected text clearly.",
+                },
+                {
+                    "role": "user",
+                    "content": f"Selected text: {selected_text}\n\nQuestion: {question}",
+                },
+            ],
+            temperature=0.7,
+            max_tokens=500,
+        )
+
+        return {"message": response.choices[0].message.content, "sources": []}
     except Exception as e:
-        return {
-            "message": f"I apologize, but I encountered an error: {str(e)}",
-            "sources": [],
-            "error": str(e),
-        }
+        return {"message": f"Error: {str(e)}", "sources": [], "error": str(e)}
 
 
-# Handler for Vercel serverless
+# Vercel serverless handler
 try:
     from mangum import Mangum
 
+try:
+    from mangum import Mangum
     handler = Mangum(app)
 except ImportError:
     handler = None

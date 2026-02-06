@@ -79,6 +79,10 @@ const config: Config = {
           label: "Textbook",
         },
         {
+          type: "custom-personalize",
+          position: "right",
+        },
+        {
           type: "custom-translate",
           position: "right",
         },

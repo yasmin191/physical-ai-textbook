@@ -83,6 +83,10 @@ const config: Config = {
           position: "right",
         },
         {
+          type: "custom-auth",
+          position: "right",
+        },
+        {
           href: "https://github.com/yasmin191/physical-ai-textbook",
           label: "GitHub",
           position: "right",

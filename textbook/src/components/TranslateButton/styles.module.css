@@ -62,13 +62,14 @@
 }
 
 .translatedContent {
-    direction: rtl;
-    text-align: right;
+    direction: rtl !important;
+    text-align: right !important;
     font-family:
         "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Noto Naskh Arabic",
-        serif;
-    line-height: 2.2;
-    font-size: 1.1rem;
+        serif !important;
+    line-height: 2.4 !important;
+    font-size: 1.2rem !important;
+    unicode-bidi: bidi-override;
 }
 
 .translatedContent h1,
@@ -77,8 +78,20 @@
 .translatedContent h4,
 .translatedContent h5,
 .translatedContent h6 {
-    direction: rtl;
-    text-align: right;
+    direction: rtl !important;
+    text-align: right !important;
+    font-family:
+        "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Noto Naskh Arabic",
+        serif !important;
+}
+
+.translatedContent p,
+.translatedContent li,
+.translatedContent span,
+.translatedContent div {
+    font-family:
+        "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Noto Naskh Arabic",
+        serif !important;
 }
 
 .translatedContent code,

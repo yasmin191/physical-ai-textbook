@@ -1,9 +1,22 @@
-import React, { useState, useCallback } from 'react';
-import translationService from '../../services/translationService';
-import styles from './styles.module.css';
+import React, { useState, useCallback, useEffect } from "react";
+import translationService from "../../services/translationService";
+import styles from "./styles.module.css";
 
 interface TranslateButtonProps {
   chapterSlug?: string;
+}
+
+// Inject Noto Nastaliq Urdu font
+function injectUrduFont() {
+  const fontId = "noto-nastaliq-urdu-font";
+  if (!document.getElementById(fontId)) {
+    const link = document.createElement("link");
+    link.id = fontId;
+    link.rel = "stylesheet";
+    link.href =
+      "https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap";
+    document.head.appendChild(link);
+  }
 }
 
 function TranslateIcon() {
@@ -21,17 +34,24 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   const [originalContent, setOriginalContent] = useState<string | null>(null);
   const [isCached, setIsCached] = useState(false);
 
+  // Load the Urdu font on component mount
+  useEffect(() => {
+    injectUrduFont();
+  }, []);
+
   const getContentElement = useCallback(() => {
     // Find the main content container in Docusaurus
-    return document.querySelector('.theme-doc-markdown') ||
-           document.querySelector('article') ||
-           document.querySelector('.markdown');
+    return (
+      document.querySelector(".theme-doc-markdown") ||
+      document.querySelector("article") ||
+      document.querySelector(".markdown")
+    );
   }, []);
 
   const handleTranslate = async () => {
     const contentEl = getContentElement();
     if (!contentEl) {
-      setError('Could not find content to translate');
+      setError("Could not find content to translate");
       return;
     }
 
@@ -43,6 +63,7 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
         // Restore original content
         contentEl.innerHTML = originalContent;
         contentEl.classList.remove(styles.translatedContent);
+        (contentEl as HTMLElement).style.cssText = "";
         setIsTranslated(false);
         setIsCached(false);
       } else {
@@ -53,22 +74,30 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
         const textContent = contentEl.innerText;
 
         // Translate
-        const response = await translationService.translate(textContent, 'ur', true);
+        const response = await translationService.translate(
+          textContent,
+          "ur",
+          true,
+        );
 
-        // Apply translation (simplified - in production, use proper markdown rendering)
+        // Apply translation with inline styles for Noto Nastaliq Urdu font
+        const urduFontStyle =
+          "font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; direction: rtl; text-align: right; line-height: 2.4; font-size: 1.2rem;";
         const translatedHtml = response.translation
-          .split('\n')
-          .map(line => `<p>${line}</p>`)
-          .join('');
+          .split("\n")
+          .filter((line) => line.trim())
+          .map((line) => `<p style="${urduFontStyle}">${line}</p>`)
+          .join("");
 
         contentEl.innerHTML = translatedHtml;
         contentEl.classList.add(styles.translatedContent);
+        (contentEl as HTMLElement).style.cssText = urduFontStyle;
         setIsTranslated(true);
         setIsCached(response.cached);
       }
     } catch (err) {
-      console.error('Translation error:', err);
-      setError('Translation failed. Please try again.');
+      console.error("Translation error:", err);
+      setError("Translation failed. Please try again.");
     } finally {
       setIsLoading(false);
     }
@@ -77,17 +106,13 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   return (
     <div className={styles.translateContainer}>
       <button
-        className={`${styles.translateButton} ${isTranslated ? styles.active : ''}`}
+        className={`${styles.translateButton} ${isTranslated ? styles.active : ""}`}
         onClick={handleTranslate}
         disabled={isLoading}
-        title={isTranslated ? 'Show original English' : 'Translate to Urdu'}
+        title={isTranslated ? "Show original English" : "Translate to Urdu"}
       >
-        {isLoading ? (
-          <span className={styles.spinner} />
-        ) : (
-          <TranslateIcon />
-        )}
-        {isTranslated ? 'English' : 'اردو میں ترجمہ'}
+        {isLoading ? <span className={styles.spinner} /> : <TranslateIcon />}
+        {isTranslated ? "English" : "اردو میں ترجمہ"}
       </button>
       {isCached && isTranslated && (
         <span className={styles.statusBadge}>Cached</span>

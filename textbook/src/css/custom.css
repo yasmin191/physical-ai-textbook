@@ -3,6 +3,9 @@
  * Custom styles with RTL support and accessibility
  */
 
+/* Import Noto Nastaliq Urdu for Urdu language support */
+@import url("https://fonts.googleapis.com/css2?family=Noto+Nastaliq+Urdu:wght@400;500;600;700&display=swap");
+
 /* Color palette - Robotics/Tech themed */
 :root {
     --ifm-color-primary: #0066cc;

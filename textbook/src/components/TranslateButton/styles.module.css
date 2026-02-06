@@ -1,71 +1,74 @@
 /* Translate Button Styles */
 
 .translateContainer {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 16px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
 }
 
 .translateButton {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 16px;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 8px;
-  background: var(--ifm-background-surface-color);
-  color: var(--ifm-font-color-base);
-  font-size: 0.9rem;
-  cursor: pointer;
-  transition: all 0.2s;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 16px;
+    border: 1px solid var(--ifm-color-emphasis-300);
+    border-radius: 8px;
+    background: var(--ifm-background-surface-color);
+    color: var(--ifm-font-color-base);
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
 }
 
 .translateButton:hover:not(:disabled) {
-  border-color: var(--ifm-color-primary);
-  background: var(--ifm-color-primary-contrast-background);
+    border-color: var(--ifm-color-primary);
+    background: var(--ifm-color-primary-contrast-background);
 }
 
 .translateButton:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
+    opacity: 0.6;
+    cursor: not-allowed;
 }
 
 .translateButton svg {
-  width: 18px;
-  height: 18px;
+    width: 18px;
+    height: 18px;
 }
 
 .active {
-  background: var(--ifm-color-primary);
-  color: white;
-  border-color: var(--ifm-color-primary);
+    background: var(--ifm-color-primary);
+    color: white;
+    border-color: var(--ifm-color-primary);
 }
 
 .active:hover:not(:disabled) {
-  background: var(--ifm-color-primary-dark);
+    background: var(--ifm-color-primary-dark);
 }
 
 .spinner {
-  width: 16px;
-  height: 16px;
-  border: 2px solid transparent;
-  border-top-color: currentColor;
-  border-radius: 50%;
-  animation: spin 0.8s linear infinite;
+    width: 16px;
+    height: 16px;
+    border: 2px solid transparent;
+    border-top-color: currentColor;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
 }
 
 @keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 .translatedContent {
-  direction: rtl;
-  text-align: right;
-  font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif;
-  line-height: 2;
+    direction: rtl;
+    text-align: right;
+    font-family:
+        "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", "Noto Naskh Arabic",
+        serif;
+    line-height: 2.2;
+    font-size: 1.1rem;
 }
 
 .translatedContent h1,
@@ -74,32 +77,32 @@
 .translatedContent h4,
 .translatedContent h5,
 .translatedContent h6 {
-  direction: rtl;
-  text-align: right;
+    direction: rtl;
+    text-align: right;
 }
 
 .translatedContent code,
 .translatedContent pre {
-  direction: ltr;
-  text-align: left;
+    direction: ltr;
+    text-align: left;
 }
 
 .translatedContent ul,
 .translatedContent ol {
-  padding-right: 2em;
-  padding-left: 0;
+    padding-right: 2em;
+    padding-left: 0;
 }
 
 .statusBadge {
-  font-size: 0.75rem;
-  padding: 2px 8px;
-  border-radius: 12px;
-  background: var(--ifm-color-success-contrast-background);
-  color: var(--ifm-color-success-dark);
+    font-size: 0.75rem;
+    padding: 2px 8px;
+    border-radius: 12px;
+    background: var(--ifm-color-success-contrast-background);
+    color: var(--ifm-color-success-dark);
 }
 
 .errorMessage {
-  color: var(--ifm-color-danger);
-  font-size: 0.85rem;
-  margin-top: 8px;
+    color: var(--ifm-color-danger);
+    font-size: 0.85rem;
+    margin-top: 8px;
 }

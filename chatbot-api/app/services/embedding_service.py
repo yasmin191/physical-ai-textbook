@@ -3,6 +3,9 @@ from openai import OpenAI
 
 from app.config import settings
 
+# Vector size for text-embedding-3-small
+VECTOR_SIZE = 1536
+
 client = OpenAI(api_key=settings.OPENAI_API_KEY)
 
 

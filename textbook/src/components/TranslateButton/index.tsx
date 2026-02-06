@@ -40,12 +40,27 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   }, []);
 
   const getContentElement = useCallback(() => {
-    // Find the main content container in Docusaurus
-    return (
-      document.querySelector(".theme-doc-markdown") ||
-      document.querySelector("article") ||
-      document.querySelector(".markdown")
-    );
+    // Find the main content container in Docusaurus - try multiple selectors
+    const selectors = [
+      ".theme-doc-markdown",
+      "article .markdown",
+      "article",
+      ".docMainContainer article",
+      '[class*="docItemContainer"] article',
+      ".container article",
+      "main article",
+      ".markdown",
+      "main .container",
+      "main",
+    ];
+
+    for (const selector of selectors) {
+      const el = document.querySelector(selector);
+      if (el && el.textContent && el.textContent.trim().length > 100) {
+        return el;
+      }
+    }
+    return null;
   }, []);
 
   const handleTranslate = async () => {

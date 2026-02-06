@@ -1,11 +1,11 @@
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import styles from "./styles.module.css";
 
-// API configuration - Update this when you deploy the chatbot API
+// API configuration - Chatbot API deployed on Vercel
 const API_BASE_URL =
   typeof window !== "undefined" && window.location.hostname !== "localhost"
-    ? "https://physical-ai-chatbot.vercel.app/api/v1"
-    : "http://localhost:8000/api/v1";
+    ? "https://physical-ai-textbook-chatbot-api.vercel.app/api"
+    : "http://localhost:8000/api";
 
 interface Message {
   id: string;
@@ -99,7 +99,7 @@ export default function RAGChatbot() {
     setIsLoading(true);
 
     try {
-      const response = await fetch(`${API_BASE_URL}/chat/`, {
+      const response = await fetch(`${API_BASE_URL}/chat`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

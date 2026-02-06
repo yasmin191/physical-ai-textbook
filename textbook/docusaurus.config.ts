@@ -37,17 +37,7 @@ const config: Config = {
 
   i18n: {
     defaultLocale: "en",
-    locales: ["en", "ur"],
-    localeConfigs: {
-      en: {
-        label: "English",
-        direction: "ltr",
-      },
-      ur: {
-        label: "اردو",
-        direction: "rtl",
-      },
-    },
+    locales: ["en"],
   },
 
   presets: [
@@ -89,11 +79,7 @@ const config: Config = {
           label: "Textbook",
         },
         {
-          type: "localeDropdown",
-          position: "right",
-        },
-        {
-          href: "https://github.com/panaversity/hackathon_1",
+          href: "https://github.com/yasmin191/physical-ai-textbook",
           label: "GitHub",
           position: "right",
         },
@@ -135,7 +121,7 @@ const config: Config = {
           items: [
             {
               label: "GitHub",
-              href: "https://github.com/panaversity/hackathon_1",
+              href: "https://github.com/yasmin191/physical-ai-textbook",
             },
             { label: "PIAIC", href: "https://piaic.org" },
             { label: "GIAIC", href: "https://giaic.org" },

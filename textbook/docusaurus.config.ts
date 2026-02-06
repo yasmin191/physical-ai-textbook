@@ -12,13 +12,12 @@ const config: Config = {
     v4: true,
   },
 
-  // GitHub Pages deployment
-  url: "https://panaversity.github.io",
-  baseUrl: "/hackathon_1/",
+  // Vercel deployment
+  url: "https://physical-ai-textbook.vercel.app",
+  baseUrl: "/",
 
-  organizationName: "panaversity",
-  projectName: "hackathon_1",
-  deploymentBranch: "gh-pages",
+  organizationName: "yasmin191",
+  projectName: "physical-ai-textbook",
   trailingSlash: false,
 
   onBrokenLinks: "throw",

@@ -129,9 +129,7 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
         {isLoading ? <span className={styles.spinner} /> : <TranslateIcon />}
         {isTranslated ? "English" : "اردو میں ترجمہ"}
       </button>
-      {isCached && isTranslated && (
-        <span className={styles.statusBadge}>Cached</span>
-      )}
+
       {error && <div className={styles.errorMessage}>{error}</div>}
     </div>
   );

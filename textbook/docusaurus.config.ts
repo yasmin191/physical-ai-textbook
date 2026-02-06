@@ -17,7 +17,7 @@ const config: Config = {
   title: "Physical AI & Humanoid Robotics",
   tagline:
     "From Digital Brain to Physical Body - A Comprehensive Course Textbook",
-  favicon: "img/favicon.ico",
+  favicon: "img/favicon.svg",
 
   future: {
     v4: true,

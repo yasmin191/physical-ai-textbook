@@ -22,10 +22,37 @@ interface BackgroundData {
   preferredPace: string;
 }
 
-const AUTH_SERVER_URL =
-  typeof window !== "undefined" && window.location.hostname !== "localhost"
-    ? "https://physical-ai-auth-server.vercel.app" // Production auth server
-    : "http://localhost:3001";
+interface User {
+  id: string;
+  name: string;
+  email: string;
+  createdAt: string;
+}
+
+// Simple localStorage-based auth for hackathon demo
+const USERS_KEY = "physical_ai_users";
+const CURRENT_USER_KEY = "physical_ai_current_user";
+
+function getUsers(): Record<
+  string,
+  { user: User; password: string; background?: BackgroundData }
+> {
+  try {
+    const users = localStorage.getItem(USERS_KEY);
+    return users ? JSON.parse(users) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveUsers(
+  users: Record<
+    string,
+    { user: User; password: string; background?: BackgroundData }
+  >,
+) {
+  localStorage.setItem(USERS_KEY, JSON.stringify(users));
+}
 
 export default function AuthModal({
   isOpen,
@@ -39,7 +66,6 @@ export default function AuthModal({
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  // Background questionnaire state
   const [background, setBackground] = useState<BackgroundData>({
     programmingExperience: "beginner",
     programmingLanguages: [],
@@ -61,27 +87,32 @@ export default function AuthModal({
     setError("");
 
     try {
-      const response = await fetch(
-        `${AUTH_SERVER_URL}/api/auth/sign-in/email`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ email, password }),
-        },
-      );
+      const users = getUsers();
+      const userEntry = users[email.toLowerCase()];
 
-      const data = await response.json();
-
-      if (response.ok) {
-        localStorage.setItem("user", JSON.stringify(data.user));
-        onSuccess();
-        onClose();
-      } else {
-        setError(data.message || "Sign in failed");
+      if (!userEntry) {
+        setError("No account found with this email");
+        setLoading(false);
+        return;
       }
+
+      if (userEntry.password !== password) {
+        setError("Incorrect password");
+        setLoading(false);
+        return;
+      }
+
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(userEntry.user));
+      if (userEntry.background) {
+        localStorage.setItem(
+          "userBackground",
+          JSON.stringify(userEntry.background),
+        );
+      }
+      onSuccess();
+      onClose();
     } catch (err) {
-      setError("Connection error. Please try again.");
+      setError("Sign in failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -93,27 +124,29 @@ export default function AuthModal({
     setError("");
 
     try {
-      const response = await fetch(
-        `${AUTH_SERVER_URL}/api/auth/sign-up/email`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ email, password, name }),
-        },
-      );
+      const users = getUsers();
+      const emailLower = email.toLowerCase();
 
-      const data = await response.json();
-
-      if (response.ok) {
-        // After signup, show background questionnaire
-        localStorage.setItem("user", JSON.stringify(data.user));
-        setMode("background");
-      } else {
-        setError(data.message || "Sign up failed");
+      if (users[emailLower]) {
+        setError("An account with this email already exists");
+        setLoading(false);
+        return;
       }
+
+      const newUser: User = {
+        id: crypto.randomUUID(),
+        name,
+        email: emailLower,
+        createdAt: new Date().toISOString(),
+      };
+
+      users[emailLower] = { user: newUser, password };
+      saveUsers(users);
+      localStorage.setItem(CURRENT_USER_KEY, JSON.stringify(newUser));
+
+      setMode("background");
     } catch (err) {
-      setError("Connection error. Please try again.");
+      setError("Sign up failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -124,21 +157,14 @@ export default function AuthModal({
     setLoading(true);
 
     try {
-      const response = await fetch(`${AUTH_SERVER_URL}/api/user/background`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify(background),
-      });
+      const users = getUsers();
+      const emailLower = email.toLowerCase();
 
-      if (response.ok) {
-        // Save background to localStorage for personalization
-        localStorage.setItem("userBackground", JSON.stringify(background));
-        onSuccess();
-        onClose();
+      if (users[emailLower]) {
+        users[emailLower].background = background;
+        saveUsers(users);
       }
-    } catch (err) {
-      // Save locally even if server fails
+
       localStorage.setItem("userBackground", JSON.stringify(background));
       onSuccess();
       onClose();
@@ -201,7 +227,13 @@ export default function AuthModal({
 
       <p className={styles.switchMode}>
         Don't have an account?{" "}
-        <button type="button" onClick={() => setMode("signup")}>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("signup");
+            setError("");
+          }}
+        >
           Sign Up
         </button>
       </p>
@@ -248,8 +280,8 @@ export default function AuthModal({
           type="password"
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          placeholder="Create a password (min 8 characters)"
-          minLength={8}
+          placeholder="Create a password (min 6 characters)"
+          minLength={6}
           required
         />
       </div>
@@ -260,7 +292,13 @@ export default function AuthModal({
 
       <p className={styles.switchMode}>
         Already have an account?{" "}
-        <button type="button" onClick={() => setMode("signin")}>
+        <button
+          type="button"
+          onClick={() => {
+            setMode("signin");
+            setError("");
+          }}
+        >
           Sign In
         </button>
       </p>

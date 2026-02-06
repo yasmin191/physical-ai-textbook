@@ -1,26 +1,29 @@
 import { betterAuth } from "better-auth";
-import Database from "better-sqlite3";
-import path from "path";
-import { fileURLToPath } from "url";
+import { createClient } from "@libsql/client";
 
-const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const dbPath = path.join(__dirname, "..", "data", "auth.db");
+// Use Turso/LibSQL for serverless compatibility
+// For hackathon demo, using in-memory SQLite
+const client = createClient({
+  url: process.env.DATABASE_URL || "file:local.db",
+});
 
 export const auth = betterAuth({
-  database: new Database(dbPath),
+  database: {
+    provider: "sqlite",
+    url: process.env.DATABASE_URL || "file:local.db",
+  },
   emailAndPassword: {
     enabled: true,
     requireEmailVerification: false,
   },
   user: {
     additionalFields: {
-      // Software background
       programmingExperience: {
         type: "string",
         required: false,
       },
       programmingLanguages: {
-        type: "string", // JSON array stored as string
+        type: "string",
         required: false,
       },
       rosExperience: {
@@ -31,13 +34,12 @@ export const auth = betterAuth({
         type: "string",
         required: false,
       },
-      // Hardware background
       roboticsExperience: {
         type: "string",
         required: false,
       },
       hardwarePlatforms: {
-        type: "string", // JSON array stored as string
+        type: "string",
         required: false,
       },
       hasJetson: {
@@ -48,9 +50,8 @@ export const auth = betterAuth({
         type: "boolean",
         required: false,
       },
-      // Learning goals
       learningGoals: {
-        type: "string", // JSON array stored as string
+        type: "string",
         required: false,
       },
       preferredPace: {
@@ -66,5 +67,3 @@ export const auth = betterAuth({
     "https://physical-ai-textbook.vercel.app",
   ],
 });
-
-export type Auth = typeof auth;

@@ -8,6 +8,8 @@ interface User {
   email: string;
 }
 
+const CURRENT_USER_KEY = "physical_ai_current_user";
+
 export default function AuthButton() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -15,25 +17,25 @@ export default function AuthButton() {
 
   useEffect(() => {
     // Check for stored user on mount
-    const storedUser = localStorage.getItem("user");
+    const storedUser = localStorage.getItem(CURRENT_USER_KEY);
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
       } catch (e) {
-        localStorage.removeItem("user");
+        localStorage.removeItem(CURRENT_USER_KEY);
       }
     }
   }, []);
 
   const handleSignOut = () => {
-    localStorage.removeItem("user");
+    localStorage.removeItem(CURRENT_USER_KEY);
     localStorage.removeItem("userBackground");
     setUser(null);
     setShowDropdown(false);
   };
 
   const handleAuthSuccess = () => {
-    const storedUser = localStorage.getItem("user");
+    const storedUser = localStorage.getItem(CURRENT_USER_KEY);
     if (storedUser) {
       try {
         setUser(JSON.parse(storedUser));
@@ -83,7 +85,10 @@ export default function AuthButton() {
 
   return (
     <>
-      <button className={styles.signInButton} onClick={() => setIsModalOpen(true)}>
+      <button
+        className={styles.signInButton}
+        onClick={() => setIsModalOpen(true)}
+      >
         Sign In
       </button>
       <AuthModal

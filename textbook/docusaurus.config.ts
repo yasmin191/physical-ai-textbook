@@ -79,6 +79,10 @@ const config: Config = {
           label: "Textbook",
         },
         {
+          type: "custom-translate",
+          position: "right",
+        },
+        {
           href: "https://github.com/yasmin191/physical-ai-textbook",
           label: "GitHub",
           position: "right",

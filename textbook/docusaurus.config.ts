@@ -2,6 +2,17 @@ import { themes as prismThemes } from "prism-react-renderer";
 import type { Config } from "@docusaurus/types";
 import type * as Preset from "@docusaurus/preset-classic";
 
+// Support both GitHub Pages and Vercel deployment
+const isVercel =
+  process.env.URL?.includes("vercel.app") || process.env.VERCEL === "1";
+const baseUrl =
+  process.env.BASE_URL || (isVercel ? "/" : "/physical-ai-textbook/");
+const url =
+  process.env.URL ||
+  (isVercel
+    ? "https://physical-ai-textbook.vercel.app"
+    : "https://yasmin191.github.io");
+
 const config: Config = {
   title: "Physical AI & Humanoid Robotics",
   tagline:
@@ -12,9 +23,9 @@ const config: Config = {
     v4: true,
   },
 
-  // GitHub Pages deployment
-  url: "https://yasmin191.github.io",
-  baseUrl: "/physical-ai-textbook/",
+  // Deployment configuration (supports both GitHub Pages and Vercel)
+  url: url,
+  baseUrl: baseUrl,
 
   organizationName: "yasmin191",
   projectName: "physical-ai-textbook",

@@ -1,0 +1,451 @@
+/**
+ * Physical AI & Humanoid Robotics Textbook
+ * Custom styles with RTL support and accessibility
+ */
+
+/* Color palette - Robotics/Tech themed */
+:root {
+    --ifm-color-primary: #0066cc;
+    --ifm-color-primary-dark: #005bb8;
+    --ifm-color-primary-darker: #0056ad;
+    --ifm-color-primary-darkest: #00478f;
+    --ifm-color-primary-light: #0071e0;
+    --ifm-color-primary-lighter: #0077eb;
+    --ifm-color-primary-lightest: #1a8cff;
+    --ifm-code-font-size: 95%;
+    --docusaurus-highlighted-code-line-bg: rgba(0, 102, 204, 0.1);
+
+    /* Custom variables */
+    --podcast-player-bg: #f5f7fa;
+    --chatbot-bg: #ffffff;
+    --chatbot-user-msg: #e3f2fd;
+    --chatbot-bot-msg: #f5f5f5;
+}
+
+[data-theme="dark"] {
+    --ifm-color-primary: #4da6ff;
+    --ifm-color-primary-dark: #2e97ff;
+    --ifm-color-primary-darker: #1f8fff;
+    --ifm-color-primary-darkest: #0077eb;
+    --ifm-color-primary-light: #6cb5ff;
+    --ifm-color-primary-lighter: #7bbdff;
+    --ifm-color-primary-lightest: #a3d4ff;
+    --docusaurus-highlighted-code-line-bg: rgba(77, 166, 255, 0.2);
+
+    --podcast-player-bg: #1e2125;
+    --chatbot-bg: #1e2125;
+    --chatbot-user-msg: #1e3a5f;
+    --chatbot-bot-msg: #2d3135;
+}
+
+/* RTL Support for Urdu */
+html[dir="rtl"] {
+    --ifm-spacing-horizontal: 1rem;
+}
+
+html[dir="rtl"] .navbar__items {
+    flex-direction: row-reverse;
+}
+
+html[dir="rtl"] .menu__list {
+    padding-right: 0;
+    padding-left: var(--ifm-menu-link-padding-horizontal);
+}
+
+html[dir="rtl"] .breadcrumbs__item:not(:last-child)::after {
+    content: "\\";
+    transform: rotate(180deg);
+}
+
+/* Urdu typography */
+html[lang="ur"],
+[dir="rtl"] {
+    font-family: "Noto Nastaliq Urdu", "Jameel Noori Nastaleeq", serif;
+}
+
+/* Keep code blocks LTR even in RTL context */
+html[dir="rtl"] pre,
+html[dir="rtl"] code {
+    direction: ltr;
+    text-align: left;
+}
+
+/* Accessibility improvements */
+:focus-visible {
+    outline: 3px solid var(--ifm-color-primary);
+    outline-offset: 2px;
+}
+
+/* Skip to content link */
+.skip-to-content {
+    position: absolute;
+    left: -9999px;
+    z-index: 999;
+    padding: 1rem;
+    background: var(--ifm-color-primary);
+    color: white;
+    text-decoration: none;
+}
+
+.skip-to-content:focus {
+    left: 50%;
+    transform: translateX(-50%);
+    top: 0;
+}
+
+/* Ensure sufficient color contrast */
+.markdown a {
+    text-decoration: underline;
+    text-underline-offset: 2px;
+}
+
+.markdown a:hover {
+    text-decoration-thickness: 2px;
+}
+
+/* Code block enhancements */
+.prism-code {
+    border-radius: 8px;
+}
+
+pre {
+    position: relative;
+}
+
+/* Code language label */
+pre::before {
+    content: attr(data-language);
+    position: absolute;
+    top: 0;
+    right: 12px;
+    padding: 2px 8px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    background: var(--ifm-color-primary-lightest);
+    color: var(--ifm-color-primary-darkest);
+    border-radius: 0 0 4px 4px;
+}
+
+/* Podcast Player Component Styles */
+.podcast-player {
+    background: var(--podcast-player-bg);
+    border-radius: 12px;
+    padding: 1rem;
+    margin-bottom: 2rem;
+    border: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.podcast-player__controls {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    flex-wrap: wrap;
+}
+
+.podcast-player__play-btn {
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    background: var(--ifm-color-primary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.podcast-player__play-btn:hover {
+    transform: scale(1.1);
+}
+
+.podcast-player__play-btn:focus-visible {
+    outline: 3px solid var(--ifm-color-primary-light);
+    outline-offset: 2px;
+}
+
+.podcast-player__progress {
+    flex: 1;
+    min-width: 200px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--ifm-color-emphasis-300);
+    cursor: pointer;
+}
+
+.podcast-player__progress-fill {
+    height: 100%;
+    background: var(--ifm-color-primary);
+    border-radius: 4px;
+    transition: width 0.1s;
+}
+
+.podcast-player__language-toggle {
+    display: flex;
+    gap: 0.5rem;
+}
+
+.podcast-player__language-btn {
+    padding: 0.5rem 1rem;
+    border: 1px solid var(--ifm-color-emphasis-400);
+    border-radius: 6px;
+    background: transparent;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.podcast-player__language-btn--active {
+    background: var(--ifm-color-primary);
+    color: white;
+    border-color: var(--ifm-color-primary);
+}
+
+/* RAG Chatbot Component Styles */
+.chatbot-container {
+    position: fixed;
+    bottom: 20px;
+    right: 20px;
+    z-index: 1000;
+}
+
+.chatbot-toggle {
+    width: 60px;
+    height: 60px;
+    border-radius: 50%;
+    background: var(--ifm-color-primary);
+    color: white;
+    border: none;
+    cursor: pointer;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s;
+}
+
+.chatbot-toggle:hover {
+    transform: scale(1.1);
+}
+
+.chatbot-window {
+    position: absolute;
+    bottom: 70px;
+    right: 0;
+    width: 380px;
+    max-width: calc(100vw - 40px);
+    height: 500px;
+    max-height: calc(100vh - 100px);
+    background: var(--chatbot-bg);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.15);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+}
+
+.chatbot-header {
+    padding: 1rem;
+    background: var(--ifm-color-primary);
+    color: white;
+    font-weight: 600;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+
+.chatbot-messages {
+    flex: 1;
+    overflow-y: auto;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.chatbot-message {
+    max-width: 85%;
+    padding: 0.75rem 1rem;
+    border-radius: 12px;
+    line-height: 1.5;
+}
+
+.chatbot-message--user {
+    background: var(--chatbot-user-msg);
+    align-self: flex-end;
+    border-bottom-right-radius: 4px;
+}
+
+.chatbot-message--bot {
+    background: var(--chatbot-bot-msg);
+    align-self: flex-start;
+    border-bottom-left-radius: 4px;
+}
+
+.chatbot-input {
+    display: flex;
+    padding: 1rem;
+    gap: 0.5rem;
+    border-top: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.chatbot-input input {
+    flex: 1;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--ifm-color-emphasis-400);
+    border-radius: 8px;
+    font-size: 0.95rem;
+}
+
+.chatbot-input button {
+    padding: 0.75rem 1.5rem;
+    background: var(--ifm-color-primary);
+    color: white;
+    border: none;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: 500;
+}
+
+/* Translate Button Styles */
+.translate-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: var(--ifm-color-emphasis-200);
+    border: 1px solid var(--ifm-color-emphasis-400);
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: all 0.2s;
+}
+
+.translate-btn:hover {
+    background: var(--ifm-color-emphasis-300);
+}
+
+.translate-btn--active {
+    background: var(--ifm-color-primary);
+    color: white;
+    border-color: var(--ifm-color-primary);
+}
+
+/* Personalize Button Styles */
+.personalize-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(
+        135deg,
+        var(--ifm-color-primary),
+        var(--ifm-color-primary-dark)
+    );
+    color: white;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.9rem;
+    transition: transform 0.2s;
+}
+
+.personalize-btn:hover {
+    transform: translateY(-2px);
+}
+
+/* Chapter header with controls */
+.chapter-header {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    padding-bottom: 1rem;
+    border-bottom: 1px solid var(--ifm-color-emphasis-300);
+}
+
+.chapter-controls {
+    display: flex;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+}
+
+/* Learning objectives box */
+.learning-objectives {
+    background: var(--ifm-color-emphasis-100);
+    border-left: 4px solid var(--ifm-color-primary);
+    padding: 1rem 1.5rem;
+    margin: 1.5rem 0;
+    border-radius: 0 8px 8px 0;
+}
+
+.learning-objectives h3 {
+    margin-top: 0;
+    color: var(--ifm-color-primary);
+}
+
+.learning-objectives ul {
+    margin-bottom: 0;
+}
+
+/* Exercise boxes */
+.exercise {
+    background: var(--ifm-color-emphasis-100);
+    border: 1px solid var(--ifm-color-emphasis-300);
+    border-radius: 8px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+}
+
+.exercise__title {
+    font-weight: 600;
+    color: var(--ifm-color-primary);
+    margin-bottom: 1rem;
+}
+
+/* Hardware requirement badges */
+.hardware-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.5rem;
+    background: var(--ifm-color-warning-contrast-background);
+    color: var(--ifm-color-warning-contrast-foreground);
+    border-radius: 4px;
+    font-size: 0.75rem;
+    font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .chatbot-window {
+        width: calc(100vw - 40px);
+        height: calc(100vh - 100px);
+        bottom: 70px;
+        right: -10px;
+    }
+
+    .podcast-player__controls {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .podcast-player__progress {
+        width: 100%;
+    }
+}
+
+/* Print styles */
+@media print {
+    .chatbot-container,
+    .podcast-player,
+    .translate-btn,
+    .personalize-btn {
+        display: none !important;
+    }
+
+    .navbar,
+    .footer {
+        display: none !important;
+    }
+}

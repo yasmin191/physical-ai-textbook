@@ -1,0 +1,8 @@
+{
+  "label": "Module 4: Vision-Language-Action",
+  "position": 5,
+  "link": {
+    "type": "generated-index",
+    "description": "Integrate vision, language understanding, and robot actions for intelligent humanoid behavior."
+  }
+}

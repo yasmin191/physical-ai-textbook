@@ -1,0 +1,350 @@
+openapi: 3.1.0
+info:
+  title: Physical AI Textbook - Chat API
+  description: RAG Chatbot API for the Physical AI & Humanoid Robotics Textbook
+  version: 1.0.0
+  contact:
+    name: Panaversity
+    url: https://panaversity.org
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: http://localhost:8000/v1
+    description: Development server
+
+tags:
+  - name: Chat
+    description: RAG chatbot operations
+  - name: Sessions
+    description: Chat session management
+
+paths:
+  /chat:
+    post:
+      tags:
+        - Chat
+      summary: Send a chat message
+      description: Send a question to the RAG chatbot and receive an answer based on textbook content
+      operationId: sendMessage
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              simple_question:
+                summary: Simple question
+                value:
+                  message: "What is ROS 2?"
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  language: "en"
+              selected_text:
+                summary: Question about selected text
+                value:
+                  message: "Explain this in simpler terms"
+                  session_id: "550e8400-e29b-41d4-a716-446655440000"
+                  language: "en"
+                  selected_text: "DDS-based middleware with QoS policies"
+                  chapter_context: "04-ros2-architecture"
+      responses:
+        '200':
+          description: Successful response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chat/sessions:
+    post:
+      tags:
+        - Sessions
+      summary: Create a new chat session
+      description: Initialize a new chat session for tracking conversation history
+      operationId: createSession
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                user_id:
+                  type: string
+                  format: uuid
+                  description: Optional user ID for authenticated users
+      responses:
+        '201':
+          description: Session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Session'
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chat/sessions/{session_id}:
+    get:
+      tags:
+        - Sessions
+      summary: Get session history
+      description: Retrieve chat history for a session
+      operationId: getSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+            maximum: 100
+      responses:
+        '200':
+          description: Session history
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SessionHistory'
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    delete:
+      tags:
+        - Sessions
+      summary: End a chat session
+      description: Mark a session as inactive and clean up resources
+      operationId: endSession
+      parameters:
+        - name: session_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Session ended successfully
+        '404':
+          description: Session not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /chat/feedback:
+    post:
+      tags:
+        - Chat
+      summary: Submit feedback on a response
+      description: Allow users to rate chatbot responses for improvement
+      operationId: submitFeedback
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FeedbackRequest'
+      responses:
+        '200':
+          description: Feedback recorded
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - message
+        - session_id
+      properties:
+        message:
+          type: string
+          maxLength: 4000
+          description: User's question or message
+          example: "What is the difference between a ROS 2 topic and service?"
+        session_id:
+          type: string
+          format: uuid
+          description: Chat session identifier
+        language:
+          type: string
+          enum: [en, ur]
+          default: en
+          description: Preferred response language
+        selected_text:
+          type: string
+          maxLength: 2000
+          description: Text highlighted by user for context
+        chapter_context:
+          type: string
+          maxLength: 100
+          description: Current chapter slug for context
+
+    ChatResponse:
+      type: object
+      properties:
+        message_id:
+          type: string
+          format: uuid
+          description: Unique message identifier
+        content:
+          type: string
+          description: Chatbot's response
+        language:
+          type: string
+          enum: [en, ur]
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/Source'
+          description: References to textbook sections used
+        tokens_used:
+          type: integer
+          description: OpenAI tokens consumed
+        created_at:
+          type: string
+          format: date-time
+
+    Source:
+      type: object
+      properties:
+        chapter_slug:
+          type: string
+          example: "04-ros2-architecture"
+        section_title:
+          type: string
+          example: "ROS 2 Communication Patterns"
+        relevance_score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          example: 0.92
+
+    Session:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        session_token:
+          type: string
+          description: Token for session authentication
+        created_at:
+          type: string
+          format: date-time
+        expires_at:
+          type: string
+          format: date-time
+
+    SessionHistory:
+      type: object
+      properties:
+        session_id:
+          type: string
+          format: uuid
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/HistoryMessage'
+        total_count:
+          type: integer
+
+    HistoryMessage:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        role:
+          type: string
+          enum: [user, assistant]
+        content:
+          type: string
+        language:
+          type: string
+          enum: [en, ur]
+        created_at:
+          type: string
+          format: date-time
+
+    FeedbackRequest:
+      type: object
+      required:
+        - message_id
+        - rating
+      properties:
+        message_id:
+          type: string
+          format: uuid
+        rating:
+          type: string
+          enum: [helpful, not_helpful]
+        comment:
+          type: string
+          maxLength: 500
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error type
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          description: Additional error details
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: Optional authentication for personalized features

@@ -1,0 +1,8 @@
+{
+  "label": "Appendices",
+  "position": 6,
+  "link": {
+    "type": "generated-index",
+    "description": "Reference materials, setup guides, and mathematical foundations."
+  }
+}

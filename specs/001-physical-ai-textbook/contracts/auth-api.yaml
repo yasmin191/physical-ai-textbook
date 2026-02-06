@@ -1,0 +1,573 @@
+openapi: 3.1.0
+info:
+  title: Physical AI Textbook - Auth API
+  description: Authentication and user management API using better-auth
+  version: 1.0.0
+  contact:
+    name: Panaversity
+    url: https://panaversity.org
+
+servers:
+  - url: https://api.example.com/v1
+    description: Production server
+  - url: http://localhost:8000/v1
+    description: Development server
+
+tags:
+  - name: Authentication
+    description: User authentication operations
+  - name: Users
+    description: User profile management
+  - name: Preferences
+    description: User preferences and personalization
+
+paths:
+  /auth/signup:
+    post:
+      tags:
+        - Authentication
+      summary: Create a new account
+      description: Register a new user with email, password, and background questionnaire
+      operationId: signup
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SignupRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Email already exists
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/signin:
+    post:
+      tags:
+        - Authentication
+      summary: Sign in to existing account
+      description: Authenticate with email and password
+      operationId: signin
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SigninRequest'
+      responses:
+        '200':
+          description: Signed in successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/signout:
+    post:
+      tags:
+        - Authentication
+      summary: Sign out
+      description: End the current session
+      operationId: signout
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Signed out successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/refresh:
+    post:
+      tags:
+        - Authentication
+      summary: Refresh access token
+      description: Get a new access token using refresh token
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - refresh_token
+              properties:
+                refresh_token:
+                  type: string
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '401':
+          description: Invalid refresh token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/password/forgot:
+    post:
+      tags:
+        - Authentication
+      summary: Request password reset
+      description: Send password reset email
+      operationId: forgotPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - email
+              properties:
+                email:
+                  type: string
+                  format: email
+      responses:
+        '200':
+          description: Reset email sent (if account exists)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "If an account exists, a reset email has been sent"
+        '429':
+          description: Too many requests
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/password/reset:
+    post:
+      tags:
+        - Authentication
+      summary: Reset password
+      description: Set new password using reset token
+      operationId: resetPassword
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - token
+                - new_password
+              properties:
+                token:
+                  type: string
+                  description: Reset token from email
+                new_password:
+                  type: string
+                  minLength: 8
+                  description: New password
+      responses:
+        '200':
+          description: Password reset successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          description: Invalid or expired token
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me:
+    get:
+      tags:
+        - Users
+      summary: Get current user profile
+      description: Retrieve the authenticated user's profile
+      operationId: getCurrentUser
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    patch:
+      tags:
+        - Users
+      summary: Update user profile
+      description: Update the authenticated user's profile
+      operationId: updateUser
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUserRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/User'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/preferences:
+    get:
+      tags:
+        - Preferences
+      summary: Get all user preferences
+      description: Retrieve all chapter preferences for the user
+      operationId: getPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: User preferences
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/UserPreference'
+        '401':
+          description: Not authenticated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /users/me/preferences/{chapter_slug}:
+    get:
+      tags:
+        - Preferences
+      summary: Get chapter preference
+      description: Retrieve preferences for a specific chapter
+      operationId: getChapterPreference
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: chapter_slug
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "04-ros2-architecture"
+      responses:
+        '200':
+          description: Chapter preference
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+        '404':
+          description: No preference set for chapter
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+    put:
+      tags:
+        - Preferences
+      summary: Set chapter preference
+      description: Set or update preferences for a specific chapter
+      operationId: setChapterPreference
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: chapter_slug
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetPreferenceRequest'
+      responses:
+        '200':
+          description: Preference updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserPreference'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /translate:
+    post:
+      tags:
+        - Translation
+      summary: Translate content to Urdu
+      description: Translate chapter content from English to Urdu
+      operationId: translateContent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  maxLength: 10000
+                  description: English content to translate
+                target_language:
+                  type: string
+                  enum: [ur]
+                  default: ur
+      responses:
+        '200':
+          description: Translation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  translation:
+                    type: string
+                  source_language:
+                    type: string
+                    example: "en"
+                  target_language:
+                    type: string
+                    example: "ur"
+        '400':
+          description: Invalid content
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '429':
+          description: Rate limit exceeded
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    SignupRequest:
+      type: object
+      required:
+        - email
+        - password
+        - python_level
+        - robotics_experience
+        - math_level
+      properties:
+        email:
+          type: string
+          format: email
+          maxLength: 255
+          example: "student@example.com"
+        password:
+          type: string
+          minLength: 8
+          description: "Min 8 chars, must include number and special char"
+        python_level:
+          type: string
+          enum: [none, beginner, intermediate, advanced]
+          description: Python programming experience
+        robotics_experience:
+          type: string
+          enum: [none, hobbyist, academic, professional]
+          description: Prior robotics background
+        math_level:
+          type: string
+          enum: [basic, calculus, linear_algebra, advanced]
+          description: Mathematical background
+
+    SigninRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+
+    AuthResponse:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/User'
+        access_token:
+          type: string
+          description: JWT access token
+        refresh_token:
+          type: string
+          description: Refresh token for getting new access tokens
+        expires_in:
+          type: integer
+          description: Token expiration in seconds
+          example: 3600
+
+    TokenResponse:
+      type: object
+      properties:
+        access_token:
+          type: string
+        expires_in:
+          type: integer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        email_verified:
+          type: boolean
+        python_level:
+          type: string
+          enum: [none, beginner, intermediate, advanced]
+        robotics_experience:
+          type: string
+          enum: [none, hobbyist, academic, professional]
+        math_level:
+          type: string
+          enum: [basic, calculus, linear_algebra, advanced]
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    UpdateUserRequest:
+      type: object
+      properties:
+        python_level:
+          type: string
+          enum: [none, beginner, intermediate, advanced]
+        robotics_experience:
+          type: string
+          enum: [none, hobbyist, academic, professional]
+        math_level:
+          type: string
+          enum: [basic, calculus, linear_algebra, advanced]
+
+    UserPreference:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        chapter_slug:
+          type: string
+        display_language:
+          type: string
+          enum: [en, ur]
+        content_depth:
+          type: string
+          enum: [beginner, default, advanced]
+        last_visited:
+          type: string
+          format: date-time
+
+    SetPreferenceRequest:
+      type: object
+      properties:
+        display_language:
+          type: string
+          enum: [en, ur]
+        content_depth:
+          type: string
+          enum: [beginner, default, advanced]
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object
+
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT

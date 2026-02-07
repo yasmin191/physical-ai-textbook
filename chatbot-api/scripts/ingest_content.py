@@ -1,25 +1,132 @@
 """
 Script to ingest textbook content into Qdrant vector database.
-Run this script after setting up your environment variables.
+Run this script locally after setting up your environment variables.
+
+Usage:
+    cd chatbot-api
+    pip install openai qdrant-client python-dotenv tiktoken
+    python scripts/ingest_content.py
 """
 
 import os
 import re
-import sys
 from pathlib import Path
 
-# Add parent directory to path
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+import tiktoken
 from dotenv import load_dotenv
+from openai import OpenAI
+from qdrant_client import QdrantClient
+from qdrant_client.http import models
 
+# Load environment variables
 load_dotenv()
 
-from app.services.qdrant_service import ensure_collection_exists, add_document
-from app.services.embedding_service import chunk_text
+# Configuration
+OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
+QDRANT_URL = os.getenv("QDRANT_URL", "")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY", "")
+COLLECTION_NAME = os.getenv("QDRANT_COLLECTION_NAME", "physical_ai_textbook")
+EMBEDDING_MODEL = "text-embedding-3-small"
+VECTOR_SIZE = 1536
+
+# Initialize clients
+openai_client = OpenAI(api_key=OPENAI_API_KEY)
+qdrant_client = QdrantClient(
+    url=QDRANT_URL,
+    api_key=QDRANT_API_KEY,
+    timeout=60,  # Increase timeout to 60 seconds
+)
 
 # Path to textbook docs
 DOCS_PATH = Path(__file__).parent.parent.parent / "textbook" / "docs"
+
+
+def get_embedding(text: str) -> list[float]:
+    """Generate embedding for text using OpenAI."""
+    response = openai_client.embeddings.create(model=EMBEDDING_MODEL, input=text)
+    return response.data[0].embedding
+
+
+def count_tokens(text: str) -> int:
+    """Count tokens in text."""
+    try:
+        encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
+    return len(encoding.encode(text))
+
+
+def chunk_text(text: str, max_tokens: int = 400, overlap: int = 50) -> list[str]:
+    """Split text into chunks with overlap."""
+    try:
+        encoding = tiktoken.encoding_for_model("gpt-4o-mini")
+    except KeyError:
+        encoding = tiktoken.get_encoding("cl100k_base")
+
+    tokens = encoding.encode(text)
+    chunks = []
+
+    start = 0
+    while start < len(tokens):
+        end = start + max_tokens
+        chunk_tokens = tokens[start:end]
+        chunk_text = encoding.decode(chunk_tokens)
+        chunks.append(chunk_text)
+        start = end - overlap
+
+    return chunks
+
+
+def ensure_collection_exists():
+    """Create collection if it doesn't exist."""
+    try:
+        collections = qdrant_client.get_collections().collections
+        collection_names = [c.name for c in collections]
+
+        if COLLECTION_NAME not in collection_names:
+            qdrant_client.create_collection(
+                collection_name=COLLECTION_NAME,
+                vectors_config=models.VectorParams(
+                    size=VECTOR_SIZE,
+                    distance=models.Distance.COSINE,
+                ),
+            )
+            print(f"Created collection: {COLLECTION_NAME}")
+        else:
+            print(f"Collection {COLLECTION_NAME} already exists")
+    except Exception as e:
+        print(f"Error checking/creating collection: {e}")
+        raise
+
+
+def add_document(
+    content: str, chapter: str, section: str = "", metadata: dict = None
+) -> str:
+    """Add a document chunk to Qdrant."""
+    import uuid
+
+    doc_id = str(uuid.uuid4())
+    embedding = get_embedding(content)
+
+    payload = {
+        "content": content,
+        "chapter": chapter,
+        "section": section or "",
+        **(metadata or {}),
+    }
+
+    qdrant_client.upsert(
+        collection_name=COLLECTION_NAME,
+        points=[
+            models.PointStruct(
+                id=doc_id,
+                vector=embedding,
+                payload=payload,
+            )
+        ],
+    )
+
+    return doc_id
 
 
 def extract_frontmatter(content: str) -> tuple[dict, str]:
@@ -99,6 +206,8 @@ def process_file(file_path: Path, chapter_name: str):
     # Extract sections
     sections = extract_sections(cleaned_content)
 
+    chunks_added = 0
+
     # Process each section
     for section in sections:
         section_content = section["content"].strip()
@@ -112,24 +221,46 @@ def process_file(file_path: Path, chapter_name: str):
             if len(chunk.strip()) < 30:
                 continue
 
-            doc_id = add_document(
-                content=chunk,
-                chapter=title,
-                section=section["title"],
-                metadata={
-                    "file": file_path.name,
-                    "chunk_index": i,
-                    "total_chunks": len(chunks),
-                },
-            )
-            print(
-                f"  Added chunk {i + 1}/{len(chunks)} from section: {section['title'][:30]}..."
-            )
+            try:
+                doc_id = add_document(
+                    content=chunk,
+                    chapter=title,
+                    section=section["title"],
+                    metadata={
+                        "file": file_path.name,
+                        "chunk_index": i,
+                        "total_chunks": len(chunks),
+                    },
+                )
+                chunks_added += 1
+            except Exception as e:
+                print(f"  Error adding chunk: {e}")
+
+    print(f"  Added {chunks_added} chunks from {len(sections)} sections")
+    return chunks_added
 
 
 def ingest_all():
     """Ingest all textbook content."""
-    print("Starting content ingestion...")
+    print("=" * 60)
+    print("Starting content ingestion into Qdrant")
+    print("=" * 60)
+
+    # Check configuration
+    if not OPENAI_API_KEY:
+        print("ERROR: OPENAI_API_KEY not set")
+        return
+    if not QDRANT_URL:
+        print("ERROR: QDRANT_URL not set")
+        return
+    if not QDRANT_API_KEY:
+        print("ERROR: QDRANT_API_KEY not set")
+        return
+
+    print(f"Qdrant URL: {QDRANT_URL}")
+    print(f"Collection: {COLLECTION_NAME}")
+    print(f"Docs path: {DOCS_PATH}")
+    print()
 
     # Ensure collection exists
     ensure_collection_exists()
@@ -144,6 +275,7 @@ def ingest_all():
     ]
 
     total_files = 0
+    total_chunks = 0
 
     for module_dir in module_dirs:
         module_path = DOCS_PATH / module_dir
@@ -151,19 +283,24 @@ def ingest_all():
             print(f"Skipping {module_dir} (not found)")
             continue
 
-        print(f"\n=== Processing {module_dir} ===")
+        print(f"\n{'=' * 40}")
+        print(f"Processing {module_dir}")
+        print("=" * 40)
 
         for md_file in sorted(module_path.glob("*.md")):
             if md_file.name.startswith("_"):
                 continue
 
             chapter_name = md_file.stem.replace("-", " ").title()
-            process_file(md_file, chapter_name)
+            chunks = process_file(md_file, chapter_name)
+            total_chunks += chunks
             total_files += 1
 
-    print(f"\n=== Ingestion complete! Processed {total_files} files ===")
+    print(f"\n{'=' * 60}")
+    print(f"Ingestion complete!")
+    print(f"Processed {total_files} files, added {total_chunks} chunks")
+    print("=" * 60)
 
-    print(f"\n=== Ingestion complete! Processed {total_files} files ===")
 
 if __name__ == "__main__":
     ingest_all()

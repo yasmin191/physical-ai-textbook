@@ -53,9 +53,8 @@ function LockIcon() {
 
 const CURRENT_USER_KEY = "physical_ai_current_user";
 
-// Split text into chunks that SpeechSynthesis can handle (max ~200 chars per utterance for reliability)
 function splitTextIntoChunks(text: string, maxLen = 200): string[] {
-  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+  const sentences = text.match(/[^.!?؟।]+[.!?؟।]+[\s]*/g) || [text];
   const chunks: string[] = [];
   let current = "";
 
@@ -72,7 +71,6 @@ function splitTextIntoChunks(text: string, maxLen = 200): string[] {
   return chunks;
 }
 
-// Extract readable text from the doc page
 function getPageText(): string {
   const selectors = [
     ".theme-doc-markdown",
@@ -84,7 +82,6 @@ function getPageText(): string {
   for (const selector of selectors) {
     const el = document.querySelector(selector);
     if (el && el.textContent && el.textContent.trim().length > 100) {
-      // Get text content, skip code blocks
       const clone = el.cloneNode(true) as HTMLElement;
       clone
         .querySelectorAll("pre, code, .hash-link, nav, .podcastPlayer")
@@ -93,6 +90,26 @@ function getPageText(): string {
     }
   }
   return "";
+}
+
+// Wait for voices to be loaded (they load async in most browsers)
+function getVoicesAsync(): Promise<SpeechSynthesisVoice[]> {
+  return new Promise((resolve) => {
+    const voices = window.speechSynthesis.getVoices();
+    if (voices.length > 0) {
+      resolve(voices);
+      return;
+    }
+    // Voices not loaded yet, wait for the event
+    const handler = () => {
+      const v = window.speechSynthesis.getVoices();
+      resolve(v);
+      window.speechSynthesis.removeEventListener("voiceschanged", handler);
+    };
+    window.speechSynthesis.addEventListener("voiceschanged", handler);
+    // Fallback timeout in case event never fires
+    setTimeout(() => resolve(window.speechSynthesis.getVoices()), 1000);
+  });
 }
 
 export default function PodcastPlayer({
@@ -109,13 +126,14 @@ export default function PodcastPlayer({
   const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
   const [totalChunks, setTotalChunks] = useState(0);
   const [error, setError] = useState<string | null>(null);
+  const [statusText, setStatusText] = useState("Ready");
 
   const chunksRef = useRef<string[]>([]);
   const currentIndexRef = useRef(0);
   const speedRef = useRef(1);
   const langRef = useRef<"en" | "ur">("en");
+  const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
 
-  // Keep refs in sync
   useEffect(() => {
     speedRef.current = playbackSpeed;
   }, [playbackSpeed]);
@@ -124,7 +142,13 @@ export default function PodcastPlayer({
     langRef.current = language;
   }, [language]);
 
-  // Check auth state
+  // Load voices on mount
+  useEffect(() => {
+    getVoicesAsync().then((voices) => {
+      voicesRef.current = voices;
+    });
+  }, []);
+
   useEffect(() => {
     const checkAuth = () => {
       setIsLoggedIn(!!localStorage.getItem(CURRENT_USER_KEY));
@@ -134,7 +158,6 @@ export default function PodcastPlayer({
     return () => window.removeEventListener("storage", checkAuth);
   }, []);
 
-  // Cleanup on unmount
   useEffect(() => {
     return () => {
       window.speechSynthesis.cancel();
@@ -142,12 +165,16 @@ export default function PodcastPlayer({
   }, []);
 
   const findVoice = useCallback((lang: "en" | "ur") => {
-    const voices = window.speechSynthesis.getVoices();
+    const voices =
+      voicesRef.current.length > 0
+        ? voicesRef.current
+        : window.speechSynthesis.getVoices();
+
     if (lang === "ur") {
-      // Try Urdu first, then Hindi as fallback (similar language, widely available)
       return (
         voices.find((v) => v.lang.startsWith("ur")) ||
         voices.find((v) => v.lang.startsWith("hi")) ||
+        voices.find((v) => v.lang.startsWith("en")) ||
         null
       );
     }
@@ -161,18 +188,25 @@ export default function PodcastPlayer({
         setIsPlaying(false);
         setIsPaused(false);
         setProgress(100);
+        setStatusText("Finished");
         return;
       }
 
       const utterance = new SpeechSynthesisUtterance(chunks[index]);
       utterance.rate = speedRef.current;
-      utterance.lang = langRef.current === "ur" ? "ur-PK" : "en-US";
 
       const voice = findVoice(langRef.current);
       if (voice) {
         utterance.voice = voice;
         utterance.lang = voice.lang;
+      } else {
+        // Set lang even without a specific voice — browser will try its best
+        utterance.lang = langRef.current === "ur" ? "hi-IN" : "en-US";
       }
+
+      utterance.onstart = () => {
+        setStatusText(`Part ${index + 1} of ${chunks.length}`);
+      };
 
       utterance.onend = () => {
         const nextIndex = index + 1;
@@ -186,7 +220,7 @@ export default function PodcastPlayer({
         if (e.error !== "canceled" && e.error !== "interrupted") {
           console.error("Speech error:", e.error);
           setError(
-            "Speech synthesis failed. Your browser may not support this voice.",
+            "Speech synthesis error. Try using Chrome for best voice support.",
           );
           setIsPlaying(false);
           setIsPaused(false);
@@ -210,6 +244,11 @@ export default function PodcastPlayer({
     setError(null);
 
     try {
+      // Ensure voices are loaded
+      if (voicesRef.current.length === 0) {
+        voicesRef.current = await getVoicesAsync();
+      }
+
       const text = getPageText();
       if (!text) {
         setError("Could not find chapter content to read");
@@ -219,15 +258,16 @@ export default function PodcastPlayer({
 
       let textToSpeak = text;
 
-      // Translate to Urdu if needed
       if (langRef.current === "ur") {
+        setStatusText("Translating to Urdu...");
         try {
           const result = await translationService.translate(text, "ur", false);
           textToSpeak = result.translation;
         } catch (err) {
           console.error("Translation error:", err);
-          setError("Failed to translate content to Urdu. Please try again.");
+          setError("Failed to translate to Urdu. Please try again.");
           setIsLoading(false);
+          setStatusText("Ready");
           return;
         }
       }
@@ -241,6 +281,7 @@ export default function PodcastPlayer({
       setIsLoading(false);
       setIsPlaying(true);
       setIsPaused(false);
+      setStatusText(`Part 1 of ${chunks.length}`);
 
       window.speechSynthesis.cancel();
       speakChunk(0);
@@ -248,6 +289,7 @@ export default function PodcastPlayer({
       console.error("Play error:", err);
       setError("Something went wrong. Please try again.");
       setIsLoading(false);
+      setStatusText("Ready");
     }
   }, [isPaused, speakChunk]);
 
@@ -255,6 +297,7 @@ export default function PodcastPlayer({
     window.speechSynthesis.pause();
     setIsPaused(true);
     setIsPlaying(false);
+    setStatusText("Paused");
   }, []);
 
   const handleStop = useCallback(() => {
@@ -264,6 +307,7 @@ export default function PodcastPlayer({
     setProgress(0);
     setCurrentChunkIndex(0);
     currentIndexRef.current = 0;
+    setStatusText("Ready");
   }, []);
 
   const handleLanguageChange = useCallback(
@@ -276,6 +320,8 @@ export default function PodcastPlayer({
       setCurrentChunkIndex(0);
       currentIndexRef.current = 0;
       setLanguage(newLang);
+      setStatusText("Ready");
+      setError(null);
     },
     [language],
   );
@@ -286,7 +332,6 @@ export default function PodcastPlayer({
     const newSpeed = PLAYBACK_SPEEDS[nextIndex];
     setPlaybackSpeed(newSpeed);
 
-    // If currently playing, restart from current chunk with new speed
     if (isPlaying) {
       window.speechSynthesis.cancel();
       setTimeout(() => {
@@ -360,11 +405,7 @@ export default function PodcastPlayer({
             />
           </div>
           <div className={styles.timeDisplay}>
-            <span>
-              {isPlaying || isPaused
-                ? `Part ${currentChunkIndex + 1} of ${totalChunks}`
-                : "Ready"}
-            </span>
+            <span>{statusText}</span>
             <span>{progress}%</span>
           </div>
         </div>

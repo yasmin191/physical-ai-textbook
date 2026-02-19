@@ -35,6 +35,7 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   const [error, setError] = useState<string | null>(null);
   const [originalContent, setOriginalContent] = useState<string | null>(null);
   const [isCached, setIsCached] = useState(false);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   // Load the Urdu font on component mount
   useEffect(() => {
@@ -71,7 +72,7 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
 
   const handleTranslate = async () => {
     if (!isLoggedIn()) {
-      setError("Please sign in to use translation");
+      setShowAuthDialog(true);
       return;
     }
 
@@ -142,6 +143,25 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
       </button>
 
       {error && <div className={styles.errorMessage}>{error}</div>}
+
+      {showAuthDialog && (
+        <div
+          className={styles.dialogOverlay}
+          onClick={() => setShowAuthDialog(false)}
+        >
+          <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.dialogMessage}>
+              Please sign in to use translation
+            </p>
+            <button
+              className={styles.dialogButton}
+              onClick={() => setShowAuthDialog(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

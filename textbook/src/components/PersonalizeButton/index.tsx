@@ -21,6 +21,7 @@ export default function PersonalizeButton() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [originalContent, setOriginalContent] = useState<string | null>(null);
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   const getContentElement = useCallback(() => {
     const selectors = [
@@ -66,13 +67,13 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedNote}">
           <strong>📚 Beginner-Friendly Guide:</strong> Since you're new to programming, we'll explain concepts step-by-step with simple examples. Don't worry if some terms are unfamiliar - we'll define everything as we go!
-        </div>`
+        </div>`,
       );
     } else if (background.programmingExperience === "advanced") {
       parts.push(
         `<div class="${styles.personalizedNote}">
           <strong>⚡ Advanced Track:</strong> As an experienced programmer, you can skip the basic explanations. Focus on the robotics-specific implementations and optimization techniques highlighted in this chapter.
-        </div>`
+        </div>`,
       );
     }
 
@@ -81,14 +82,17 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>🐍 Python User:</strong> Great news! Most code examples in this textbook use Python. You'll feel right at home with the ROS 2 rclpy library.
-        </div>`
+        </div>`,
       );
     }
-    if (background.programmingLanguages.includes("C++") && !background.programmingLanguages.includes("Python")) {
+    if (
+      background.programmingLanguages.includes("C++") &&
+      !background.programmingLanguages.includes("Python")
+    ) {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>💻 C++ User:</strong> While examples are in Python, ROS 2 also supports C++ (rclcpp). The concepts transfer directly - consider exploring the C++ equivalents for performance-critical applications.
-        </div>`
+        </div>`,
       );
     }
 
@@ -97,13 +101,13 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedNote}">
           <strong>🤖 New to ROS:</strong> We'll introduce ROS 2 concepts gradually. Pay special attention to the "Key Concepts" boxes throughout this chapter.
-        </div>`
+        </div>`,
       );
     } else if (background.rosExperience === "advanced") {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>🎯 ROS Expert:</strong> You can skim the ROS basics and focus on the humanoid-specific implementations and advanced integration patterns.
-        </div>`
+        </div>`,
       );
     }
 
@@ -112,7 +116,7 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>🖥️ Jetson User:</strong> Look for the "Jetson Optimization" sections - these contain hardware-specific tips for running code efficiently on your device.
-        </div>`
+        </div>`,
       );
     }
 
@@ -120,13 +124,13 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>🦾 Robot Access:</strong> You can test the examples on real hardware! Check the "Hands-On" exercises at the end of each section.
-        </div>`
+        </div>`,
       );
     } else {
       parts.push(
         `<div class="${styles.personalizedNote}">
           <strong>💡 Simulation Mode:</strong> No robot? No problem! All examples can be run in Gazebo simulation. We'll guide you through the setup.
-        </div>`
+        </div>`,
       );
     }
 
@@ -135,13 +139,13 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedNote}">
           <strong>📖 Detailed Learning:</strong> Take your time with each section. We recommend completing all exercises before moving on.
-        </div>`
+        </div>`,
       );
     } else if (background.preferredPace === "fast") {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>🚀 Fast Track:</strong> Focus on the highlighted key points and code examples. The detailed explanations are there if you need them.
-        </div>`
+        </div>`,
       );
     }
 
@@ -150,14 +154,14 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>🎯 Your Goal - Humanoid Robots:</strong> This chapter directly contributes to your goal! Pay attention to the bipedal locomotion and balance control concepts.
-        </div>`
+        </div>`,
       );
     }
     if (background.learningGoals.includes("Career in robotics")) {
       parts.push(
         `<div class="${styles.personalizedTip}">
           <strong>💼 Career Focus:</strong> Industry insights and best practices are marked with a briefcase icon throughout this chapter.
-        </div>`
+        </div>`,
       );
     }
 
@@ -165,7 +169,7 @@ export default function PersonalizeButton() {
       parts.push(
         `<div class="${styles.personalizedNote}">
           <strong>✨ Personalized for You:</strong> This content has been tailored based on your background. Enjoy your learning journey!
-        </div>`
+        </div>`,
       );
     }
 
@@ -177,7 +181,7 @@ export default function PersonalizeButton() {
 
   const handlePersonalize = async () => {
     if (!isLoggedIn()) {
-      setError("Please sign in to personalize content");
+      setShowAuthDialog(true);
       return;
     }
 
@@ -226,7 +230,11 @@ export default function PersonalizeButton() {
         className={`${styles.personalizeButton} ${isPersonalized ? styles.active : ""}`}
         onClick={handlePersonalize}
         disabled={isLoading}
-        title={isPersonalized ? "Remove personalization" : "Personalize content based on your background"}
+        title={
+          isPersonalized
+            ? "Remove personalization"
+            : "Personalize content based on your background"
+        }
       >
         {isLoading ? (
           <span className={styles.spinner} />
@@ -236,6 +244,25 @@ export default function PersonalizeButton() {
         {isPersonalized ? "Original" : "Personalize"}
       </button>
       {error && <div className={styles.errorMessage}>{error}</div>}
+
+      {showAuthDialog && (
+        <div
+          className={styles.dialogOverlay}
+          onClick={() => setShowAuthDialog(false)}
+        >
+          <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+            <p className={styles.dialogMessage}>
+              Please sign in to personalize content
+            </p>
+            <button
+              className={styles.dialogButton}
+              onClick={() => setShowAuthDialog(false)}
+            >
+              OK
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

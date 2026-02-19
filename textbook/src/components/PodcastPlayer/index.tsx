@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import styles from "./styles.module.css";
 
 interface PodcastPlayerProps {
@@ -24,19 +24,19 @@ function PauseIcon() {
   );
 }
 
+function StopIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="currentColor">
+      <path d="M6 6h12v12H6z" />
+    </svg>
+  );
+}
+
 function HeadphonesIcon() {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
       <path d="M3 18v-6a9 9 0 0118 0v6" />
       <path d="M21 19a2 2 0 01-2 2h-1a2 2 0 01-2-2v-3a2 2 0 012-2h3v5zM3 19a2 2 0 002 2h1a2 2 0 002-2v-3a2 2 0 00-2-2H3v5z" />
-    </svg>
-  );
-}
-
-function DownloadIcon() {
-  return (
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-      <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
     </svg>
   );
 }
@@ -52,119 +52,215 @@ function LockIcon() {
 
 const CURRENT_USER_KEY = "physical_ai_current_user";
 
-function formatTime(seconds: number): string {
-  const mins = Math.floor(seconds / 60);
-  const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, "0")}`;
+// Split text into chunks that SpeechSynthesis can handle (max ~200 chars per utterance for reliability)
+function splitTextIntoChunks(text: string, maxLen = 200): string[] {
+  const sentences = text.match(/[^.!?]+[.!?]+[\s]*/g) || [text];
+  const chunks: string[] = [];
+  let current = "";
+
+  for (const sentence of sentences) {
+    if (current.length + sentence.length > maxLen && current.length > 0) {
+      chunks.push(current.trim());
+      current = "";
+    }
+    current += sentence;
+  }
+  if (current.trim()) {
+    chunks.push(current.trim());
+  }
+  return chunks;
+}
+
+// Extract readable text from the doc page
+function getPageText(): string {
+  const selectors = [
+    ".theme-doc-markdown",
+    "article .markdown",
+    "article",
+    "main article",
+  ];
+
+  for (const selector of selectors) {
+    const el = document.querySelector(selector);
+    if (el && el.textContent && el.textContent.trim().length > 100) {
+      // Get text content, skip code blocks
+      const clone = el.cloneNode(true) as HTMLElement;
+      clone
+        .querySelectorAll("pre, code, .hash-link, nav, .podcastPlayer")
+        .forEach((node) => node.remove());
+      return clone.textContent?.trim() || "";
+    }
+  }
+  return "";
 }
 
 export default function PodcastPlayer({
   chapterSlug,
   chapterTitle,
 }: PodcastPlayerProps) {
-  const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
+  const [isPaused, setIsPaused] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
   const [language, setLanguage] = useState<"en" | "ur">("en");
-  const [audioAvailable, setAudioAvailable] = useState(true);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [progress, setProgress] = useState(0);
+  const [currentChunkIndex, setCurrentChunkIndex] = useState(0);
+  const [totalChunks, setTotalChunks] = useState(0);
+  const [error, setError] = useState<string | null>(null);
 
-  // Check auth state on mount and listen for changes
+  const chunksRef = useRef<string[]>([]);
+  const currentIndexRef = useRef(0);
+  const speedRef = useRef(1);
+  const langRef = useRef<"en" | "ur">("en");
+
+  // Keep refs in sync
+  useEffect(() => {
+    speedRef.current = playbackSpeed;
+  }, [playbackSpeed]);
+
+  useEffect(() => {
+    langRef.current = language;
+  }, [language]);
+
+  // Check auth state
   useEffect(() => {
     const checkAuth = () => {
       setIsLoggedIn(!!localStorage.getItem(CURRENT_USER_KEY));
     };
     checkAuth();
-
     window.addEventListener("storage", checkAuth);
     return () => window.removeEventListener("storage", checkAuth);
   }, []);
 
-  // Audio file paths
-  const audioPath = `/audio/${language}/${chapterSlug}.mp3`;
-
+  // Cleanup on unmount
   useEffect(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-
-    const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const handleDurationChange = () => setDuration(audio.duration);
-    const handleEnded = () => setIsPlaying(false);
-    const handleError = () => setAudioAvailable(false);
-    const handleCanPlay = () => setAudioAvailable(true);
-
-    audio.addEventListener("timeupdate", handleTimeUpdate);
-    audio.addEventListener("durationchange", handleDurationChange);
-    audio.addEventListener("ended", handleEnded);
-    audio.addEventListener("error", handleError);
-    audio.addEventListener("canplay", handleCanPlay);
-
     return () => {
-      audio.removeEventListener("timeupdate", handleTimeUpdate);
-      audio.removeEventListener("durationchange", handleDurationChange);
-      audio.removeEventListener("ended", handleEnded);
-      audio.removeEventListener("error", handleError);
-      audio.removeEventListener("canplay", handleCanPlay);
+      window.speechSynthesis.cancel();
     };
   }, []);
 
-  useEffect(() => {
-    const audio = audioRef.current;
-    if (audio) {
-      audio.playbackRate = playbackSpeed;
-    }
-  }, [playbackSpeed]);
-
-  useEffect(() => {
-    // Reset when language changes
-    const audio = audioRef.current;
-    if (audio) {
-      audio.pause();
+  const speakChunk = useCallback((index: number) => {
+    const chunks = chunksRef.current;
+    if (index >= chunks.length) {
       setIsPlaying(false);
-      setCurrentTime(0);
-      audio.load();
+      setIsPaused(false);
+      setProgress(100);
+      return;
     }
-  }, [language, chapterSlug]);
 
-  const togglePlay = () => {
-    const audio = audioRef.current;
-    if (!audio) return;
+    const utterance = new SpeechSynthesisUtterance(chunks[index]);
+    utterance.rate = speedRef.current;
+    utterance.lang = langRef.current === "ur" ? "ur-PK" : "en-US";
 
-    if (isPlaying) {
-      audio.pause();
-    } else {
-      audio.play().catch(console.error);
+    // Try to find a matching voice
+    const voices = window.speechSynthesis.getVoices();
+    const langCode = langRef.current === "ur" ? "ur" : "en";
+    const matchingVoice = voices.find((v) => v.lang.startsWith(langCode));
+    if (matchingVoice) {
+      utterance.voice = matchingVoice;
     }
-    setIsPlaying(!isPlaying);
-  };
 
-  const handleProgressClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const audio = audioRef.current;
-    if (!audio || !duration) return;
+    utterance.onend = () => {
+      const nextIndex = index + 1;
+      currentIndexRef.current = nextIndex;
+      setCurrentChunkIndex(nextIndex);
+      setProgress(Math.round((nextIndex / chunks.length) * 100));
+      speakChunk(nextIndex);
+    };
 
-    const rect = e.currentTarget.getBoundingClientRect();
-    const percent = (e.clientX - rect.left) / rect.width;
-    audio.currentTime = percent * duration;
-  };
+    utterance.onerror = (e) => {
+      if (e.error !== "canceled" && e.error !== "interrupted") {
+        console.error("Speech error:", e.error);
+        setError(
+          "Speech synthesis failed. Your browser may not support this voice.",
+        );
+        setIsPlaying(false);
+        setIsPaused(false);
+      }
+    };
 
-  const cycleSpeed = () => {
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  const handlePlay = useCallback(() => {
+    if (isPaused) {
+      window.speechSynthesis.resume();
+      setIsPaused(false);
+      setIsPlaying(true);
+      return;
+    }
+
+    setIsLoading(true);
+    setError(null);
+
+    // Small delay to let the page content be fully available
+    setTimeout(() => {
+      const text = getPageText();
+      if (!text) {
+        setError("Could not find chapter content to read");
+        setIsLoading(false);
+        return;
+      }
+
+      const chunks = splitTextIntoChunks(text);
+      chunksRef.current = chunks;
+      currentIndexRef.current = 0;
+      setTotalChunks(chunks.length);
+      setCurrentChunkIndex(0);
+      setProgress(0);
+      setIsLoading(false);
+      setIsPlaying(true);
+      setIsPaused(false);
+
+      window.speechSynthesis.cancel();
+      speakChunk(0);
+    }, 100);
+  }, [isPaused, speakChunk]);
+
+  const handlePause = useCallback(() => {
+    window.speechSynthesis.pause();
+    setIsPaused(true);
+    setIsPlaying(false);
+  }, []);
+
+  const handleStop = useCallback(() => {
+    window.speechSynthesis.cancel();
+    setIsPlaying(false);
+    setIsPaused(false);
+    setProgress(0);
+    setCurrentChunkIndex(0);
+    currentIndexRef.current = 0;
+  }, []);
+
+  const handleLanguageChange = useCallback(
+    (newLang: "en" | "ur") => {
+      if (newLang === language) return;
+      window.speechSynthesis.cancel();
+      setIsPlaying(false);
+      setIsPaused(false);
+      setProgress(0);
+      setCurrentChunkIndex(0);
+      currentIndexRef.current = 0;
+      setLanguage(newLang);
+    },
+    [language],
+  );
+
+  const cycleSpeed = useCallback(() => {
     const currentIndex = PLAYBACK_SPEEDS.indexOf(playbackSpeed);
     const nextIndex = (currentIndex + 1) % PLAYBACK_SPEEDS.length;
-    setPlaybackSpeed(PLAYBACK_SPEEDS[nextIndex]);
-  };
+    const newSpeed = PLAYBACK_SPEEDS[nextIndex];
+    setPlaybackSpeed(newSpeed);
 
-  const handleDownload = () => {
-    const link = document.createElement("a");
-    link.href = audioPath;
-    link.download = `${chapterSlug}-${language}.mp3`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+    // If currently playing, restart from current chunk with new speed
+    if (isPlaying) {
+      window.speechSynthesis.cancel();
+      setTimeout(() => {
+        speakChunk(currentIndexRef.current);
+      }, 50);
+    }
+  }, [playbackSpeed, isPlaying, speakChunk]);
 
   if (!isLoggedIn) {
     return (
@@ -185,8 +281,6 @@ export default function PodcastPlayer({
 
   return (
     <div className={styles.podcastPlayer}>
-      <audio ref={audioRef} src={audioPath} preload="metadata" />
-
       <div className={styles.playerHeader}>
         <div className={styles.playerTitle}>
           <HeadphonesIcon />
@@ -195,56 +289,70 @@ export default function PodcastPlayer({
         <div className={styles.languageToggle}>
           <button
             className={`${styles.langButton} ${language === "en" ? styles.active : ""}`}
-            onClick={() => setLanguage("en")}
+            onClick={() => handleLanguageChange("en")}
+            disabled={isLoading}
           >
             English
           </button>
           <button
             className={`${styles.langButton} ${language === "ur" ? styles.active : ""}`}
-            onClick={() => setLanguage("ur")}
+            onClick={() => handleLanguageChange("ur")}
+            disabled={isLoading}
           >
             اردو
           </button>
         </div>
       </div>
 
-      {audioAvailable ? (
-        <div className={styles.controls}>
-          <button className={styles.playButton} onClick={togglePlay}>
-            {isPlaying ? <PauseIcon /> : <PlayIcon />}
+      <div className={styles.controls}>
+        <button
+          className={styles.playButton}
+          onClick={isPlaying ? handlePause : handlePlay}
+          disabled={isLoading}
+        >
+          {isLoading ? (
+            <span className={styles.spinner} />
+          ) : isPlaying ? (
+            <PauseIcon />
+          ) : (
+            <PlayIcon />
+          )}
+        </button>
+
+        <div className={styles.progressContainer}>
+          <div className={styles.progressBar}>
+            <div
+              className={styles.progressFill}
+              style={{ width: `${progress}%` }}
+            />
+          </div>
+          <div className={styles.timeDisplay}>
+            <span>
+              {isPlaying || isPaused
+                ? `Part ${currentChunkIndex + 1} of ${totalChunks}`
+                : "Ready"}
+            </span>
+            <span>{progress}%</span>
+          </div>
+        </div>
+
+        <div className={styles.rightControls}>
+          <button className={styles.speedButton} onClick={cycleSpeed}>
+            {playbackSpeed}x
           </button>
-
-          <div className={styles.progressContainer}>
-            <div className={styles.progressBar} onClick={handleProgressClick}>
-              <div
-                className={styles.progressFill}
-                style={{ width: `${progress}%` }}
-              />
-            </div>
-            <div className={styles.timeDisplay}>
-              <span>{formatTime(currentTime)}</span>
-              <span>{formatTime(duration)}</span>
-            </div>
-          </div>
-
-          <div className={styles.rightControls}>
-            <button className={styles.speedButton} onClick={cycleSpeed}>
-              {playbackSpeed}x
-            </button>
+          {(isPlaying || isPaused) && (
             <button
-              className={styles.downloadButton}
-              onClick={handleDownload}
-              title="Download audio"
+              className={styles.stopButton}
+              onClick={handleStop}
+              title="Stop"
             >
-              <DownloadIcon />
+              <StopIcon />
             </button>
-          </div>
+          )}
         </div>
-      ) : (
-        <div className={styles.noAudio}>
-          Audio not available for this chapter yet.
-        </div>
-      )}
+      </div>
+
+      {error && <div className={styles.errorText}>{error}</div>}
     </div>
   );
 }

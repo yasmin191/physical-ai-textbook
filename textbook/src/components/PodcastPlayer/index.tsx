@@ -1,5 +1,5 @@
-import React, { useState, useRef, useEffect } from 'react';
-import styles from './styles.module.css';
+import React, { useState, useRef, useEffect } from "react";
+import styles from "./styles.module.css";
 
 interface PodcastPlayerProps {
   chapterSlug: string;
@@ -41,20 +41,46 @@ function DownloadIcon() {
   );
 }
 
+function LockIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0110 0v4" />
+    </svg>
+  );
+}
+
+const CURRENT_USER_KEY = "physical_ai_current_user";
+
 function formatTime(seconds: number): string {
   const mins = Math.floor(seconds / 60);
   const secs = Math.floor(seconds % 60);
-  return `${mins}:${secs.toString().padStart(2, '0')}`;
+  return `${mins}:${secs.toString().padStart(2, "0")}`;
 }
 
-export default function PodcastPlayer({ chapterSlug, chapterTitle }: PodcastPlayerProps) {
+export default function PodcastPlayer({
+  chapterSlug,
+  chapterTitle,
+}: PodcastPlayerProps) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackSpeed, setPlaybackSpeed] = useState(1);
-  const [language, setLanguage] = useState<'en' | 'ur'>('en');
+  const [language, setLanguage] = useState<"en" | "ur">("en");
   const [audioAvailable, setAudioAvailable] = useState(true);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+
+  // Check auth state on mount and listen for changes
+  useEffect(() => {
+    const checkAuth = () => {
+      setIsLoggedIn(!!localStorage.getItem(CURRENT_USER_KEY));
+    };
+    checkAuth();
+
+    window.addEventListener("storage", checkAuth);
+    return () => window.removeEventListener("storage", checkAuth);
+  }, []);
 
   // Audio file paths
   const audioPath = `/audio/${language}/${chapterSlug}.mp3`;
@@ -69,18 +95,18 @@ export default function PodcastPlayer({ chapterSlug, chapterTitle }: PodcastPlay
     const handleError = () => setAudioAvailable(false);
     const handleCanPlay = () => setAudioAvailable(true);
 
-    audio.addEventListener('timeupdate', handleTimeUpdate);
-    audio.addEventListener('durationchange', handleDurationChange);
-    audio.addEventListener('ended', handleEnded);
-    audio.addEventListener('error', handleError);
-    audio.addEventListener('canplay', handleCanPlay);
+    audio.addEventListener("timeupdate", handleTimeUpdate);
+    audio.addEventListener("durationchange", handleDurationChange);
+    audio.addEventListener("ended", handleEnded);
+    audio.addEventListener("error", handleError);
+    audio.addEventListener("canplay", handleCanPlay);
 
     return () => {
-      audio.removeEventListener('timeupdate', handleTimeUpdate);
-      audio.removeEventListener('durationchange', handleDurationChange);
-      audio.removeEventListener('ended', handleEnded);
-      audio.removeEventListener('error', handleError);
-      audio.removeEventListener('canplay', handleCanPlay);
+      audio.removeEventListener("timeupdate", handleTimeUpdate);
+      audio.removeEventListener("durationchange", handleDurationChange);
+      audio.removeEventListener("ended", handleEnded);
+      audio.removeEventListener("error", handleError);
+      audio.removeEventListener("canplay", handleCanPlay);
     };
   }, []);
 
@@ -130,7 +156,7 @@ export default function PodcastPlayer({ chapterSlug, chapterTitle }: PodcastPlay
   };
 
   const handleDownload = () => {
-    const link = document.createElement('a');
+    const link = document.createElement("a");
     link.href = audioPath;
     link.download = `${chapterSlug}-${language}.mp3`;
     document.body.appendChild(link);
@@ -139,6 +165,23 @@ export default function PodcastPlayer({ chapterSlug, chapterTitle }: PodcastPlay
   };
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
+
+  if (!isLoggedIn) {
+    return (
+      <div className={styles.podcastPlayer}>
+        <div className={styles.playerHeader}>
+          <div className={styles.playerTitle}>
+            <HeadphonesIcon />
+            <span>Listen to this chapter</span>
+          </div>
+        </div>
+        <div className={styles.lockedState}>
+          <LockIcon />
+          <span>Sign in to access podcasts in English and Urdu</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={styles.podcastPlayer}>
@@ -151,14 +194,14 @@ export default function PodcastPlayer({ chapterSlug, chapterTitle }: PodcastPlay
         </div>
         <div className={styles.languageToggle}>
           <button
-            className={`${styles.langButton} ${language === 'en' ? styles.active : ''}`}
-            onClick={() => setLanguage('en')}
+            className={`${styles.langButton} ${language === "en" ? styles.active : ""}`}
+            onClick={() => setLanguage("en")}
           >
             English
           </button>
           <button
-            className={`${styles.langButton} ${language === 'ur' ? styles.active : ''}`}
-            onClick={() => setLanguage('ur')}
+            className={`${styles.langButton} ${language === "ur" ? styles.active : ""}`}
+            onClick={() => setLanguage("ur")}
           >
             اردو
           </button>
@@ -173,7 +216,10 @@ export default function PodcastPlayer({ chapterSlug, chapterTitle }: PodcastPlay
 
           <div className={styles.progressContainer}>
             <div className={styles.progressBar} onClick={handleProgressClick}>
-              <div className={styles.progressFill} style={{ width: `${progress}%` }} />
+              <div
+                className={styles.progressFill}
+                style={{ width: `${progress}%` }}
+              />
             </div>
             <div className={styles.timeDisplay}>
               <span>{formatTime(currentTime)}</span>

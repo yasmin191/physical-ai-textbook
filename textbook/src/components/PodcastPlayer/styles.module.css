@@ -1,196 +1,218 @@
 /* Podcast Player Styles */
 
 .podcastPlayer {
-  background: linear-gradient(135deg, var(--ifm-color-primary-lightest), var(--ifm-background-surface-color));
-  border: 1px solid var(--ifm-color-emphasis-200);
-  border-radius: 12px;
-  padding: 16px;
-  margin-bottom: 24px;
+    background: linear-gradient(
+        135deg,
+        var(--ifm-color-primary-lightest),
+        var(--ifm-background-surface-color)
+    );
+    border: 1px solid var(--ifm-color-emphasis-200);
+    border-radius: 12px;
+    padding: 16px;
+    margin-bottom: 24px;
 }
 
 .playerHeader {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
 }
 
 .playerTitle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 600;
-  color: var(--ifm-font-color-base);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 600;
+    color: var(--ifm-font-color-base);
 }
 
 .playerTitle svg {
-  width: 20px;
-  height: 20px;
-  color: var(--ifm-color-primary);
+    width: 20px;
+    height: 20px;
+    color: var(--ifm-color-primary);
 }
 
 .languageToggle {
-  display: flex;
-  gap: 4px;
-  padding: 4px;
-  background: var(--ifm-background-color);
-  border-radius: 8px;
+    display: flex;
+    gap: 4px;
+    padding: 4px;
+    background: var(--ifm-background-color);
+    border-radius: 8px;
 }
 
 .langButton {
-  padding: 6px 12px;
-  border: none;
-  background: transparent;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 0.85rem;
-  color: var(--ifm-color-emphasis-600);
-  transition: all 0.2s;
+    padding: 6px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 0.85rem;
+    color: var(--ifm-color-emphasis-600);
+    transition: all 0.2s;
 }
 
 .langButton:hover {
-  background: var(--ifm-color-emphasis-100);
+    background: var(--ifm-color-emphasis-100);
 }
 
 .langButton.active {
-  background: var(--ifm-color-primary);
-  color: white;
-  font-weight: 600;
+    background: var(--ifm-color-primary);
+    color: white;
+    font-weight: 600;
 }
 
 .controls {
-  display: flex;
-  align-items: center;
-  gap: 12px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
 }
 
 .playButton {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
-  border: none;
-  background: var(--ifm-color-primary);
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: transform 0.2s, background 0.2s;
-  flex-shrink: 0;
+    width: 48px;
+    height: 48px;
+    border-radius: 50%;
+    border: none;
+    background: var(--ifm-color-primary);
+    color: white;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition:
+        transform 0.2s,
+        background 0.2s;
+    flex-shrink: 0;
 }
 
 .playButton:hover {
-  transform: scale(1.05);
-  background: var(--ifm-color-primary-dark);
+    transform: scale(1.05);
+    background: var(--ifm-color-primary-dark);
 }
 
 .playButton svg {
-  width: 24px;
-  height: 24px;
+    width: 24px;
+    height: 24px;
 }
 
 .progressContainer {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
 }
 
 .progressBar {
-  width: 100%;
-  height: 6px;
-  background: var(--ifm-color-emphasis-200);
-  border-radius: 3px;
-  cursor: pointer;
-  position: relative;
-  overflow: hidden;
+    width: 100%;
+    height: 6px;
+    background: var(--ifm-color-emphasis-200);
+    border-radius: 3px;
+    cursor: pointer;
+    position: relative;
+    overflow: hidden;
 }
 
 .progressFill {
-  height: 100%;
-  background: var(--ifm-color-primary);
-  border-radius: 3px;
-  transition: width 0.1s;
+    height: 100%;
+    background: var(--ifm-color-primary);
+    border-radius: 3px;
+    transition: width 0.1s;
 }
 
 .timeDisplay {
-  display: flex;
-  justify-content: space-between;
-  font-size: 0.75rem;
-  color: var(--ifm-color-emphasis-600);
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.75rem;
+    color: var(--ifm-color-emphasis-600);
 }
 
 .rightControls {
-  display: flex;
-  align-items: center;
-  gap: 8px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .speedButton {
-  padding: 4px 8px;
-  border: 1px solid var(--ifm-color-emphasis-300);
-  border-radius: 4px;
-  background: var(--ifm-background-color);
-  color: var(--ifm-font-color-base);
-  font-size: 0.75rem;
-  cursor: pointer;
-  min-width: 48px;
-  transition: all 0.2s;
+    padding: 4px 8px;
+    border: 1px solid var(--ifm-color-emphasis-300);
+    border-radius: 4px;
+    background: var(--ifm-background-color);
+    color: var(--ifm-font-color-base);
+    font-size: 0.75rem;
+    cursor: pointer;
+    min-width: 48px;
+    transition: all 0.2s;
 }
 
 .speedButton:hover {
-  border-color: var(--ifm-color-primary);
+    border-color: var(--ifm-color-primary);
 }
 
 .downloadButton {
-  padding: 8px;
-  border: none;
-  background: transparent;
-  color: var(--ifm-color-emphasis-600);
-  cursor: pointer;
-  border-radius: 4px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  transition: all 0.2s;
+    padding: 8px;
+    border: none;
+    background: transparent;
+    color: var(--ifm-color-emphasis-600);
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
 }
 
 .downloadButton:hover {
-  background: var(--ifm-color-emphasis-100);
-  color: var(--ifm-color-primary);
+    background: var(--ifm-color-emphasis-100);
+    color: var(--ifm-color-primary);
 }
 
 .downloadButton svg {
-  width: 20px;
-  height: 20px;
+    width: 20px;
+    height: 20px;
 }
 
 .noAudio {
-  text-align: center;
-  padding: 12px;
-  color: var(--ifm-color-emphasis-600);
-  font-size: 0.9rem;
+    text-align: center;
+    padding: 12px;
+    color: var(--ifm-color-emphasis-600);
+    font-size: 0.9rem;
+}
+
+.lockedState {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 12px;
+    color: var(--ifm-color-emphasis-600);
+    font-size: 0.9rem;
+}
+
+.lockedState svg {
+    width: 18px;
+    height: 18px;
+    flex-shrink: 0;
 }
 
 /* Mobile responsive */
 @media (max-width: 600px) {
-  .playerHeader {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-  }
+    .playerHeader {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
 
-  .controls {
-    flex-wrap: wrap;
-  }
+    .controls {
+        flex-wrap: wrap;
+    }
 
-  .progressContainer {
-    order: 1;
-    width: 100%;
-    margin-top: 8px;
-  }
+    .progressContainer {
+        order: 1;
+        width: 100%;
+        margin-top: 8px;
+    }
 
-  .rightControls {
-    margin-left: auto;
-  }
+    .rightControls {
+        margin-left: auto;
+    }
 }

@@ -1,6 +1,5 @@
 /**
- * Translation service - Client-side translation using Google Translate API
- * For production, consider using a paid API or deploying a backend
+ * Translation service - Client-side translation using Google Translate free endpoint
  */
 
 export interface TranslateResponse {
@@ -21,7 +20,6 @@ interface CacheEntry {
 
 class TranslationService {
   private getCacheKey(content: string, targetLang: string): string {
-    // Simple hash for cache key
     const hash = content.split("").reduce((a, b) => {
       a = (a << 5) - a + b.charCodeAt(0);
       return a & a;
@@ -39,7 +37,6 @@ class TranslationService {
         if (Date.now() - entry.timestamp < CACHE_EXPIRY) {
           return entry.translation;
         }
-        // Remove expired cache
         localStorage.removeItem(key);
       }
     } catch (error) {
@@ -66,50 +63,33 @@ class TranslationService {
   }
 
   /**
-   * Translate using MyMemory free translation API
-   * Free tier: 5000 chars/day, no API key required
+   * Translate a single chunk using Google Translate free endpoint
    */
-  private async translateWithMyMemory(
+  private async translateChunk(
     text: string,
+    sourceLang: string,
     targetLang: string,
   ): Promise<string> {
-    // Split text into chunks (MyMemory has 500 char limit per request)
-    const chunks = this.splitIntoChunks(text, 450);
-    const translatedChunks: string[] = [];
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
 
-    for (const chunk of chunks) {
-      if (!chunk.trim()) {
-        translatedChunks.push("");
-        continue;
-      }
-
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|${targetLang}`;
-
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.responseStatus === 200 && data.responseData?.translatedText) {
-          translatedChunks.push(data.responseData.translatedText);
-        } else {
-          // If translation fails, return original
-          translatedChunks.push(chunk);
-        }
-      } catch (error) {
-        console.error("Translation chunk error:", error);
-        translatedChunks.push(chunk);
-      }
-
-      // Small delay to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Translation request failed: ${response.status}`);
     }
 
-    return translatedChunks.join(" ");
+    const data = await response.json();
+
+    // Response format: [[["translated text","original text",null,null,10]],null,"en"]
+    if (Array.isArray(data) && Array.isArray(data[0])) {
+      return data[0].map((item: any[]) => item[0]).join("");
+    }
+
+    throw new Error("Unexpected translation response format");
   }
 
   private splitIntoChunks(text: string, maxLength: number): string[] {
     const chunks: string[] = [];
-    const sentences = text.split(/(?<=[.!?।])\s+/);
+    const sentences = text.split(/(?<=[.!?।؟])\s+/);
     let currentChunk = "";
 
     for (const sentence of sentences) {
@@ -117,7 +97,6 @@ class TranslationService {
         if (currentChunk) {
           chunks.push(currentChunk.trim());
         }
-        // If single sentence is too long, split by words
         if (sentence.length > maxLength) {
           const words = sentence.split(" ");
           currentChunk = "";
@@ -165,7 +144,6 @@ class TranslationService {
     const codeBlocks: { placeholder: string; code: string }[] = [];
 
     if (preserveCode) {
-      // Replace code blocks with placeholders
       let codeIndex = 0;
       textToTranslate = content.replace(/```[\s\S]*?```|`[^`]+`/g, (match) => {
         const placeholder = `__CODE_BLOCK_${codeIndex}__`;
@@ -175,11 +153,35 @@ class TranslationService {
       });
     }
 
-    // Translate using MyMemory API
-    let translation = await this.translateWithMyMemory(
-      textToTranslate,
-      targetLanguage,
-    );
+    // Split into chunks (Google Translate handles ~5000 chars per request)
+    const chunks = this.splitIntoChunks(textToTranslate, 4500);
+    const translatedChunks: string[] = [];
+
+    for (const chunk of chunks) {
+      if (!chunk.trim()) {
+        translatedChunks.push("");
+        continue;
+      }
+
+      try {
+        const translated = await this.translateChunk(
+          chunk,
+          "en",
+          targetLanguage,
+        );
+        translatedChunks.push(translated);
+      } catch (error) {
+        console.error("Translation chunk error:", error);
+        translatedChunks.push(chunk);
+      }
+
+      // Small delay between requests
+      if (chunks.length > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 200));
+      }
+    }
+
+    let translation = translatedChunks.join(" ");
 
     // Restore code blocks
     for (const { placeholder, code } of codeBlocks) {

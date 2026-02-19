@@ -1,4 +1,5 @@
 import React, { useState, useCallback, useEffect } from "react";
+import { createPortal } from "react-dom";
 import translationService from "../../services/translationService";
 import styles from "./styles.module.css";
 
@@ -144,24 +145,26 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
 
       {error && <div className={styles.errorMessage}>{error}</div>}
 
-      {showAuthDialog && (
-        <div
-          className={styles.dialogOverlay}
-          onClick={() => setShowAuthDialog(false)}
-        >
-          <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.dialogMessage}>
-              Please sign in to use translation
-            </p>
-            <button
-              className={styles.dialogButton}
-              onClick={() => setShowAuthDialog(false)}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
+      {showAuthDialog &&
+        createPortal(
+          <div
+            className={styles.dialogOverlay}
+            onClick={() => setShowAuthDialog(false)}
+          >
+            <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+              <p className={styles.dialogMessage}>
+                Please sign in to use translation
+              </p>
+              <button
+                className={styles.dialogButton}
+                onClick={() => setShowAuthDialog(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

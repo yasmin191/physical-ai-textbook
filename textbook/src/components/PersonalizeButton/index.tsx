@@ -1,4 +1,5 @@
 import React, { useState, useCallback } from "react";
+import { createPortal } from "react-dom";
 import styles from "./styles.module.css";
 
 interface UserBackground {
@@ -245,24 +246,26 @@ export default function PersonalizeButton() {
       </button>
       {error && <div className={styles.errorMessage}>{error}</div>}
 
-      {showAuthDialog && (
-        <div
-          className={styles.dialogOverlay}
-          onClick={() => setShowAuthDialog(false)}
-        >
-          <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
-            <p className={styles.dialogMessage}>
-              Please sign in to personalize content
-            </p>
-            <button
-              className={styles.dialogButton}
-              onClick={() => setShowAuthDialog(false)}
-            >
-              OK
-            </button>
-          </div>
-        </div>
-      )}
+      {showAuthDialog &&
+        createPortal(
+          <div
+            className={styles.dialogOverlay}
+            onClick={() => setShowAuthDialog(false)}
+          >
+            <div className={styles.dialog} onClick={(e) => e.stopPropagation()}>
+              <p className={styles.dialogMessage}>
+                Please sign in to personalize content
+              </p>
+              <button
+                className={styles.dialogButton}
+                onClick={() => setShowAuthDialog(false)}
+              >
+                OK
+              </button>
+            </div>
+          </div>,
+          document.body,
+        )}
     </div>
   );
 }

@@ -48,23 +48,13 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
   };
 
   const getContentElement = useCallback(() => {
-    // Find the main content container in Docusaurus - try multiple selectors
-    const selectors = [
-      ".theme-doc-markdown",
-      "article .markdown",
-      "article",
-      ".docMainContainer article",
-      '[class*="docItemContainer"] article',
-      ".container article",
-      "main article",
-      ".markdown",
-      "main .container",
-      "main",
-    ];
+    // Find the main markdown content container in Docusaurus
+    // Be specific to avoid picking up nav/podcast/sidebar elements
+    const selectors = [".theme-doc-markdown", "article .markdown", "article"];
 
     for (const selector of selectors) {
       const el = document.querySelector(selector);
-      if (el && el.textContent && el.textContent.trim().length > 100) {
+      if (el && el.textContent && el.textContent.trim().length > 50) {
         return el;
       }
     }
@@ -98,24 +88,57 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
         // Save original content
         setOriginalContent(contentEl.innerHTML);
 
-        // Get text content for translation
+        // Get text content for translation (innerText gives visible text only)
         const textContent = contentEl.innerText;
 
-        // Translate
+        if (!textContent || textContent.trim().length < 10) {
+          setError("No content found to translate");
+          setIsLoading(false);
+          return;
+        }
+
+        // Clear any stale cache for this content before translating
+        // (in case a previous bad translation was cached)
+        translationService.clearLocalCache();
+
+        // Translate (preserveCode=false since innerText has no markdown fences)
         const response = await translationService.translate(
           textContent,
           "ur",
-          true,
+          false,
         );
+
+        if (!response.translation || response.translation.trim().length === 0) {
+          setError("Translation returned empty result. Please try again.");
+          setIsLoading(false);
+          return;
+        }
 
         // Apply translation with inline styles for Noto Nastaliq Urdu font
         const urduFontStyle =
           "font-family: 'Noto Nastaliq Urdu', 'Jameel Noori Nastaleeq', serif; direction: rtl; text-align: right; line-height: 2.4; font-size: 1.2rem;";
-        const translatedHtml = response.translation
-          .split("\n")
-          .filter((line) => line.trim())
-          .map((line) => `<p style="${urduFontStyle}">${line}</p>`)
-          .join("");
+
+        // Split on both \n and double-space to handle various response formats
+        const lines = response.translation
+          .split(/\n+/)
+          .map((line) => line.trim())
+          .filter((line) => line.length > 0);
+
+        // If splitting by newlines gives only 1 chunk, split by sentences instead
+        let translatedHtml: string;
+        if (lines.length <= 1) {
+          // The translation came back as one big block — split by Urdu sentence endings
+          const sentences = response.translation
+            .split(/(?<=[۔؟!।.])\s*/)
+            .filter((s) => s.trim().length > 0);
+          translatedHtml = sentences
+            .map((s) => `<p style="${urduFontStyle}">${s}</p>`)
+            .join("");
+        } else {
+          translatedHtml = lines
+            .map((line) => `<p style="${urduFontStyle}">${line}</p>`)
+            .join("");
+        }
 
         contentEl.innerHTML = translatedHtml;
         contentEl.classList.add(styles.translatedContent);
@@ -123,9 +146,9 @@ export default function TranslateButton({ chapterSlug }: TranslateButtonProps) {
         setIsTranslated(true);
         setIsCached(response.cached);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error("Translation error:", err);
-      setError("Translation failed. Please try again.");
+      setError(err?.message || "Translation failed. Please try again.");
     } finally {
       setIsLoading(false);
     }

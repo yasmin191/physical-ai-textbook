@@ -1,5 +1,6 @@
 /**
- * Translation service - Client-side translation using Google Translate free endpoint
+ * Translation service - Client-side translation using multiple free endpoints
+ * with automatic fallback
  */
 
 export interface TranslateResponse {
@@ -63,9 +64,9 @@ class TranslationService {
   }
 
   /**
-   * Translate a single chunk using Google Translate free endpoint
+   * Try Google Translate free endpoint
    */
-  private async translateChunk(
+  private async translateWithGoogle(
     text: string,
     sourceLang: string,
     targetLang: string,
@@ -74,17 +75,93 @@ class TranslationService {
 
     const response = await fetch(url);
     if (!response.ok) {
-      throw new Error(`Translation request failed: ${response.status}`);
+      throw new Error(`Google Translate failed: ${response.status}`);
     }
 
     const data = await response.json();
 
-    // Response format: [[["translated text","original text",null,null,10]],null,"en"]
     if (Array.isArray(data) && Array.isArray(data[0])) {
-      return data[0].map((item: any[]) => item[0]).join("");
+      const result = data[0]
+        .filter((item: any) => Array.isArray(item) && item[0])
+        .map((item: any[]) => item[0])
+        .join("");
+      if (result && result.trim().length > 0) {
+        return result;
+      }
     }
 
-    throw new Error("Unexpected translation response format");
+    throw new Error("Empty or unexpected Google Translate response");
+  }
+
+  /**
+   * Try MyMemory translation API as fallback
+   */
+  private async translateWithMyMemory(
+    text: string,
+    sourceLang: string,
+    targetLang: string,
+  ): Promise<string> {
+    const langPair = `${sourceLang}|${targetLang}`;
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`MyMemory failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (
+      data.responseStatus === 200 &&
+      data.responseData &&
+      data.responseData.translatedText
+    ) {
+      const translated = data.responseData.translatedText;
+      // MyMemory returns "MYMEMORY WARNING" when limit is hit
+      if (translated.includes("MYMEMORY WARNING")) {
+        throw new Error("MyMemory rate limit reached");
+      }
+      return translated;
+    }
+
+    throw new Error(
+      `MyMemory error: ${data.responseStatus} - ${data.responseData?.translatedText || "unknown"}`,
+    );
+  }
+
+  /**
+   * Translate a single chunk with automatic fallback between providers
+   */
+  private async translateChunk(
+    text: string,
+    sourceLang: string,
+    targetLang: string,
+  ): Promise<string> {
+    // Try Google Translate first
+    try {
+      const result = await this.translateWithGoogle(
+        text,
+        sourceLang,
+        targetLang,
+      );
+      return result;
+    } catch (googleError) {
+      console.warn("Google Translate failed, trying MyMemory:", googleError);
+    }
+
+    // Fallback to MyMemory
+    try {
+      const result = await this.translateWithMyMemory(
+        text,
+        sourceLang,
+        targetLang,
+      );
+      return result;
+    } catch (myMemoryError) {
+      console.warn("MyMemory also failed:", myMemoryError);
+    }
+
+    throw new Error("All translation providers failed");
   }
 
   private splitIntoChunks(text: string, maxLength: number): string[] {
@@ -153,9 +230,10 @@ class TranslationService {
       });
     }
 
-    // Split into chunks (Google Translate handles ~5000 chars per request)
-    const chunks = this.splitIntoChunks(textToTranslate, 4500);
+    // Use smaller chunks (450 chars) so MyMemory fallback also works
+    const chunks = this.splitIntoChunks(textToTranslate, 450);
     const translatedChunks: string[] = [];
+    let failedChunks = 0;
 
     for (const chunk of chunks) {
       if (!chunk.trim()) {
@@ -171,14 +249,25 @@ class TranslationService {
         );
         translatedChunks.push(translated);
       } catch (error) {
-        console.error("Translation chunk error:", error);
+        console.error("Translation chunk failed (all providers):", error);
         translatedChunks.push(chunk);
+        failedChunks++;
       }
 
-      // Small delay between requests
+      // Small delay between requests to avoid rate limiting
       if (chunks.length > 1) {
-        await new Promise((resolve) => setTimeout(resolve, 200));
+        await new Promise((resolve) => setTimeout(resolve, 300));
       }
+    }
+
+    // If ALL chunks failed, throw so the UI shows an error
+    if (
+      failedChunks > 0 &&
+      failedChunks === chunks.filter((c) => c.trim()).length
+    ) {
+      throw new Error(
+        "Translation failed - could not reach translation service. Please check your internet connection and try again.",
+      );
     }
 
     let translation = translatedChunks.join(" ");
@@ -188,8 +277,10 @@ class TranslationService {
       translation = translation.replace(placeholder, code);
     }
 
-    // Save to local cache
-    this.saveToCache(content, targetLanguage, translation);
+    // Only cache if translation was mostly successful
+    if (failedChunks === 0) {
+      this.saveToCache(content, targetLanguage, translation);
+    }
 
     return {
       translation,

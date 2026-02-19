@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import translationService from "../../services/translationService";
 import styles from "./styles.module.css";
 
 interface PodcastPlayerProps {
@@ -140,50 +141,64 @@ export default function PodcastPlayer({
     };
   }, []);
 
-  const speakChunk = useCallback((index: number) => {
-    const chunks = chunksRef.current;
-    if (index >= chunks.length) {
-      setIsPlaying(false);
-      setIsPaused(false);
-      setProgress(100);
-      return;
-    }
-
-    const utterance = new SpeechSynthesisUtterance(chunks[index]);
-    utterance.rate = speedRef.current;
-    utterance.lang = langRef.current === "ur" ? "ur-PK" : "en-US";
-
-    // Try to find a matching voice
+  const findVoice = useCallback((lang: "en" | "ur") => {
     const voices = window.speechSynthesis.getVoices();
-    const langCode = langRef.current === "ur" ? "ur" : "en";
-    const matchingVoice = voices.find((v) => v.lang.startsWith(langCode));
-    if (matchingVoice) {
-      utterance.voice = matchingVoice;
+    if (lang === "ur") {
+      // Try Urdu first, then Hindi as fallback (similar language, widely available)
+      return (
+        voices.find((v) => v.lang.startsWith("ur")) ||
+        voices.find((v) => v.lang.startsWith("hi")) ||
+        null
+      );
     }
-
-    utterance.onend = () => {
-      const nextIndex = index + 1;
-      currentIndexRef.current = nextIndex;
-      setCurrentChunkIndex(nextIndex);
-      setProgress(Math.round((nextIndex / chunks.length) * 100));
-      speakChunk(nextIndex);
-    };
-
-    utterance.onerror = (e) => {
-      if (e.error !== "canceled" && e.error !== "interrupted") {
-        console.error("Speech error:", e.error);
-        setError(
-          "Speech synthesis failed. Your browser may not support this voice.",
-        );
-        setIsPlaying(false);
-        setIsPaused(false);
-      }
-    };
-
-    window.speechSynthesis.speak(utterance);
+    return voices.find((v) => v.lang.startsWith("en")) || null;
   }, []);
 
-  const handlePlay = useCallback(() => {
+  const speakChunk = useCallback(
+    (index: number) => {
+      const chunks = chunksRef.current;
+      if (index >= chunks.length) {
+        setIsPlaying(false);
+        setIsPaused(false);
+        setProgress(100);
+        return;
+      }
+
+      const utterance = new SpeechSynthesisUtterance(chunks[index]);
+      utterance.rate = speedRef.current;
+      utterance.lang = langRef.current === "ur" ? "ur-PK" : "en-US";
+
+      const voice = findVoice(langRef.current);
+      if (voice) {
+        utterance.voice = voice;
+        utterance.lang = voice.lang;
+      }
+
+      utterance.onend = () => {
+        const nextIndex = index + 1;
+        currentIndexRef.current = nextIndex;
+        setCurrentChunkIndex(nextIndex);
+        setProgress(Math.round((nextIndex / chunks.length) * 100));
+        speakChunk(nextIndex);
+      };
+
+      utterance.onerror = (e) => {
+        if (e.error !== "canceled" && e.error !== "interrupted") {
+          console.error("Speech error:", e.error);
+          setError(
+            "Speech synthesis failed. Your browser may not support this voice.",
+          );
+          setIsPlaying(false);
+          setIsPaused(false);
+        }
+      };
+
+      window.speechSynthesis.speak(utterance);
+    },
+    [findVoice],
+  );
+
+  const handlePlay = useCallback(async () => {
     if (isPaused) {
       window.speechSynthesis.resume();
       setIsPaused(false);
@@ -194,8 +209,7 @@ export default function PodcastPlayer({
     setIsLoading(true);
     setError(null);
 
-    // Small delay to let the page content be fully available
-    setTimeout(() => {
+    try {
       const text = getPageText();
       if (!text) {
         setError("Could not find chapter content to read");
@@ -203,7 +217,22 @@ export default function PodcastPlayer({
         return;
       }
 
-      const chunks = splitTextIntoChunks(text);
+      let textToSpeak = text;
+
+      // Translate to Urdu if needed
+      if (langRef.current === "ur") {
+        try {
+          const result = await translationService.translate(text, "ur", false);
+          textToSpeak = result.translation;
+        } catch (err) {
+          console.error("Translation error:", err);
+          setError("Failed to translate content to Urdu. Please try again.");
+          setIsLoading(false);
+          return;
+        }
+      }
+
+      const chunks = splitTextIntoChunks(textToSpeak);
       chunksRef.current = chunks;
       currentIndexRef.current = 0;
       setTotalChunks(chunks.length);
@@ -215,7 +244,11 @@ export default function PodcastPlayer({
 
       window.speechSynthesis.cancel();
       speakChunk(0);
-    }, 100);
+    } catch (err) {
+      console.error("Play error:", err);
+      setError("Something went wrong. Please try again.");
+      setIsLoading(false);
+    }
   }, [isPaused, speakChunk]);
 
   const handlePause = useCallback(() => {

@@ -2,6 +2,21 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import translationService from "../../services/translationService";
 import styles from "./styles.module.css";
 
+// Fetch Google TTS audio via a CORS proxy to avoid browser blocking
+async function fetchUrduAudioBlob(text: string): Promise<string | null> {
+  // Use allorigins CORS proxy to fetch Google TTS mp3
+  const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ur&client=tw-ob`;
+  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ttsUrl)}`;
+  try {
+    const res = await fetch(proxyUrl);
+    if (!res.ok) return null;
+    const blob = await res.blob();
+    return URL.createObjectURL(blob);
+  } catch {
+    return null;
+  }
+}
+
 interface PodcastPlayerProps {
   chapterSlug: string;
   chapterTitle?: string;
@@ -54,7 +69,7 @@ function LockIcon() {
 const CURRENT_USER_KEY = "physical_ai_current_user";
 
 function splitTextIntoChunks(text: string, maxLen = 200): string[] {
-  const sentences = text.match(/[^.!?؟।]+[.!?؟।]+[\s]*/g) || [text];
+  const sentences = text.match(/[^.!?؟।۔]+[.!?؟।۔]+[\s]*/g) || [text];
   const chunks: string[] = [];
   let current = "";
 
@@ -133,6 +148,11 @@ export default function PodcastPlayer({
   const speedRef = useRef(1);
   const langRef = useRef<"en" | "ur">("en");
   const voicesRef = useRef<SpeechSynthesisVoice[]>([]);
+  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // For Urdu: holds the currently playing Audio element
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  // Flag to cancel Urdu audio playback mid-sequence
+  const urduCancelledRef = useRef(false);
 
   useEffect(() => {
     speedRef.current = playbackSpeed;
@@ -142,7 +162,7 @@ export default function PodcastPlayer({
     langRef.current = language;
   }, [language]);
 
-  // Load voices on mount
+  // Load voices on mount for English TTS
   useEffect(() => {
     getVoicesAsync().then((voices) => {
       voicesRef.current = voices;
@@ -158,11 +178,36 @@ export default function PodcastPlayer({
     return () => window.removeEventListener("storage", checkAuth);
   }, []);
 
+  // Chrome stops speechSynthesis after ~15s; keep it alive with pause/resume every 10s
+  const stopKeepAlive = useCallback(() => {
+    if (keepAliveRef.current) {
+      clearInterval(keepAliveRef.current);
+      keepAliveRef.current = null;
+    }
+  }, []);
+
+  const startKeepAlive = useCallback(() => {
+    stopKeepAlive();
+    keepAliveRef.current = setInterval(() => {
+      if (window.speechSynthesis.speaking && !window.speechSynthesis.paused) {
+        window.speechSynthesis.pause();
+        window.speechSynthesis.resume();
+      }
+    }, 10000);
+  }, [stopKeepAlive]);
+
+  // Cleanup on unmount
   useEffect(() => {
     return () => {
+      urduCancelledRef.current = true;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
+      stopKeepAlive();
       window.speechSynthesis.cancel();
     };
-  }, []);
+  }, [stopKeepAlive]);
 
   const findVoice = useCallback((lang: "en" | "ur") => {
     const voices =
@@ -185,11 +230,17 @@ export default function PodcastPlayer({
     (index: number) => {
       const chunks = chunksRef.current;
       if (index >= chunks.length) {
+        stopKeepAlive();
         setIsPlaying(false);
         setIsPaused(false);
         setProgress(100);
         setStatusText("Finished");
         return;
+      }
+
+      // Start keep-alive on first chunk to prevent Chrome stopping after ~15s
+      if (index === 0) {
+        startKeepAlive();
       }
 
       const utterance = new SpeechSynthesisUtterance(chunks[index]);
@@ -219,6 +270,7 @@ export default function PodcastPlayer({
       utterance.onerror = (e) => {
         if (e.error !== "canceled" && e.error !== "interrupted") {
           console.error("Speech error:", e.error);
+          stopKeepAlive();
           setError(
             "Speech synthesis error. Try using Chrome for best voice support.",
           );
@@ -229,14 +281,126 @@ export default function PodcastPlayer({
 
       window.speechSynthesis.speak(utterance);
     },
-    [findVoice],
+    [findVoice, startKeepAlive, stopKeepAlive],
+  );
+
+  // Speak a single Urdu chunk: try Google TTS via CORS proxy, fall back to Web Speech API
+  const speakUrduChunk = useCallback(
+    (chunk: string, index: number, total: number): Promise<void> => {
+      return new Promise<void>(async (resolve) => {
+        if (urduCancelledRef.current) { resolve(); return; }
+
+        // Try Google TTS via proxy first
+        const blobUrl = await fetchUrduAudioBlob(chunk);
+
+        if (urduCancelledRef.current) {
+          if (blobUrl) URL.revokeObjectURL(blobUrl);
+          resolve();
+          return;
+        }
+
+        if (blobUrl) {
+          const audio = new Audio(blobUrl);
+          audio.playbackRate = speedRef.current;
+          audioRef.current = audio;
+          audio.onended = () => {
+            URL.revokeObjectURL(blobUrl);
+            setProgress(Math.round(((index + 1) / total) * 100));
+            resolve();
+          };
+          audio.onerror = () => {
+            URL.revokeObjectURL(blobUrl);
+            resolve();
+          };
+          audio.play().catch(() => { URL.revokeObjectURL(blobUrl); resolve(); });
+          return;
+        }
+
+        // Proxy failed — fall back to Web Speech API with best available voice
+        const voices = voicesRef.current.length > 0
+          ? voicesRef.current
+          : window.speechSynthesis.getVoices();
+        const voice =
+          voices.find((v) => v.lang.startsWith("ur")) ||
+          voices.find((v) => v.lang.startsWith("hi")) ||
+          voices.find((v) => v.lang.startsWith("en")) ||
+          null;
+
+        const utterance = new SpeechSynthesisUtterance(chunk);
+        utterance.rate = speedRef.current;
+        if (voice) {
+          utterance.voice = voice;
+          utterance.lang = voice.lang;
+        } else {
+          utterance.lang = "hi-IN";
+        }
+        utterance.onend = () => {
+          setProgress(Math.round(((index + 1) / total) * 100));
+          resolve();
+        };
+        utterance.onerror = () => resolve();
+        window.speechSynthesis.speak(utterance);
+      });
+    },
+    [],
+  );
+
+  // Urdu TTS: plays chunks sequentially using Google TTS audio (proxy) with Web Speech fallback
+  const speakUrduChunks = useCallback(
+    async (startIndex: number) => {
+      const chunks = chunksRef.current;
+      urduCancelledRef.current = false;
+
+      for (let i = startIndex; i < chunks.length; i++) {
+        if (urduCancelledRef.current) break;
+
+        // Reuse paused audio for resume case
+        const existing = audioRef.current;
+        if (i === startIndex && existing && existing.paused && !existing.ended) {
+          existing.playbackRate = speedRef.current;
+          await new Promise<void>((resolve) => {
+            existing.onended = () => {
+              setProgress(Math.round(((i + 1) / chunks.length) * 100));
+              resolve();
+            };
+            existing.onerror = () => resolve();
+            existing.play().catch(() => resolve());
+          });
+          continue;
+        }
+
+        currentIndexRef.current = i;
+        setCurrentChunkIndex(i);
+        setStatusText(`Part ${i + 1} of ${chunks.length}`);
+
+        await speakUrduChunk(chunks[i], i, chunks.length);
+      }
+
+      if (!urduCancelledRef.current) {
+        audioRef.current = null;
+        setIsPlaying(false);
+        setIsPaused(false);
+        setProgress(100);
+        setStatusText("Finished");
+      }
+    },
+    [speakUrduChunk],
   );
 
   const handlePlay = useCallback(async () => {
     if (isPaused) {
-      window.speechSynthesis.resume();
-      setIsPaused(false);
-      setIsPlaying(true);
+      if (langRef.current === "ur") {
+        setIsPaused(false);
+        setIsPlaying(true);
+        // speakUrduChunks will detect the paused audioRef and resume it,
+        // then continue with subsequent chunks
+        speakUrduChunks(currentIndexRef.current);
+      } else {
+        startKeepAlive();
+        window.speechSynthesis.resume();
+        setIsPaused(false);
+        setIsPlaying(true);
+      }
       return;
     }
 
@@ -261,7 +425,14 @@ export default function PodcastPlayer({
       if (langRef.current === "ur") {
         setStatusText("Translating to Urdu...");
         try {
-          const result = await translationService.translate(text, "ur", false);
+          const result = await translationService.translate(
+            text,
+            "ur",
+            false,
+            (current, total) => {
+              setStatusText(`Translating... (${current} of ${total})`);
+            },
+          );
           textToSpeak = result.translation;
         } catch (err) {
           console.error("Translation error:", err);
@@ -283,24 +454,44 @@ export default function PodcastPlayer({
       setIsPaused(false);
       setStatusText(`Part 1 of ${chunks.length}`);
 
-      window.speechSynthesis.cancel();
-      speakChunk(0);
+      if (langRef.current === "ur") {
+        // Urdu: use Google TTS audio (works without installing any voices)
+        speakUrduChunks(0);
+      } else {
+        // English: use Web Speech API
+        window.speechSynthesis.cancel();
+        speakChunk(0);
+      }
     } catch (err) {
       console.error("Play error:", err);
       setError("Something went wrong. Please try again.");
       setIsLoading(false);
       setStatusText("Ready");
     }
-  }, [isPaused, speakChunk]);
+  }, [isPaused, speakChunk, speakUrduChunks, startKeepAlive]);
 
   const handlePause = useCallback(() => {
-    window.speechSynthesis.pause();
+    if (langRef.current === "ur") {
+      urduCancelledRef.current = true;
+      if (audioRef.current) {
+        audioRef.current.pause();
+      }
+    } else {
+      stopKeepAlive();
+      window.speechSynthesis.pause();
+    }
     setIsPaused(true);
     setIsPlaying(false);
     setStatusText("Paused");
-  }, []);
+  }, [stopKeepAlive]);
 
   const handleStop = useCallback(() => {
+    urduCancelledRef.current = true;
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+    stopKeepAlive();
     window.speechSynthesis.cancel();
     setIsPlaying(false);
     setIsPaused(false);
@@ -308,11 +499,16 @@ export default function PodcastPlayer({
     setCurrentChunkIndex(0);
     currentIndexRef.current = 0;
     setStatusText("Ready");
-  }, []);
+  }, [stopKeepAlive]);
 
   const handleLanguageChange = useCallback(
     (newLang: "en" | "ur") => {
       if (newLang === language) return;
+      urduCancelledRef.current = true;
+      if (audioRef.current) {
+        audioRef.current.pause();
+        audioRef.current = null;
+      }
       window.speechSynthesis.cancel();
       setIsPlaying(false);
       setIsPaused(false);
@@ -333,10 +529,17 @@ export default function PodcastPlayer({
     setPlaybackSpeed(newSpeed);
 
     if (isPlaying) {
-      window.speechSynthesis.cancel();
-      setTimeout(() => {
-        speakChunk(currentIndexRef.current);
-      }, 50);
+      if (langRef.current === "ur") {
+        // Update the currently playing audio element's rate immediately
+        if (audioRef.current) {
+          audioRef.current.playbackRate = newSpeed;
+        }
+      } else {
+        window.speechSynthesis.cancel();
+        setTimeout(() => {
+          speakChunk(currentIndexRef.current);
+        }, 50);
+      }
     }
   }, [playbackSpeed, isPlaying, speakChunk]);
 

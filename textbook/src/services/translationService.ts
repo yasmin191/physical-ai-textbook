@@ -63,6 +63,15 @@ class TranslationService {
     }
   }
 
+  private withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms),
+      ),
+    ]);
+  }
+
   /**
    * Try Google Translate free endpoint
    */
@@ -137,24 +146,22 @@ class TranslationService {
     sourceLang: string,
     targetLang: string,
   ): Promise<string> {
-    // Try Google Translate first
+    // Try Google Translate first (10s timeout)
     try {
-      const result = await this.translateWithGoogle(
-        text,
-        sourceLang,
-        targetLang,
+      const result = await this.withTimeout(
+        this.translateWithGoogle(text, sourceLang, targetLang),
+        10000,
       );
       return result;
     } catch (googleError) {
       console.warn("Google Translate failed, trying MyMemory:", googleError);
     }
 
-    // Fallback to MyMemory
+    // Fallback to MyMemory (10s timeout)
     try {
-      const result = await this.translateWithMyMemory(
-        text,
-        sourceLang,
-        targetLang,
+      const result = await this.withTimeout(
+        this.translateWithMyMemory(text, sourceLang, targetLang),
+        10000,
       );
       return result;
     } catch (myMemoryError) {
@@ -166,7 +173,15 @@ class TranslationService {
 
   private splitIntoChunks(text: string, maxLength: number): string[] {
     const chunks: string[] = [];
-    const sentences = text.split(/(?<=[.!?।؟])\s+/);
+    // Split on sentence-ending punctuation including Urdu ۔ and ؟
+    // Avoid lookbehind for broader browser compatibility
+    const rawParts = text.split(/([.!?।؟۔]+\s*)/);
+    // Re-join punctuation back onto the preceding sentence
+    const sentences: string[] = [];
+    for (let i = 0; i < rawParts.length; i += 2) {
+      const sentence = rawParts[i] + (rawParts[i + 1] || "");
+      if (sentence.trim()) sentences.push(sentence);
+    }
     let currentChunk = "";
 
     for (const sentence of sentences) {
@@ -204,6 +219,7 @@ class TranslationService {
     content: string,
     targetLanguage: string = "ur",
     preserveCode: boolean = true,
+    onProgress?: (current: number, total: number) => void,
   ): Promise<TranslateResponse> {
     // Check local cache first
     const cached = this.getFromCache(content, targetLanguage);
@@ -253,6 +269,8 @@ class TranslationService {
         translatedChunks.push(chunk);
         failedChunks++;
       }
+
+      onProgress?.(translatedChunks.length, chunks.filter((c) => c.trim()).length);
 
       // Small delay between requests to avoid rate limiting
       if (chunks.length > 1) {

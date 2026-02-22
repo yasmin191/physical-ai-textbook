@@ -200,6 +200,18 @@
     font-size: 0.85rem;
 }
 
+.warningText {
+    text-align: center;
+    padding: 8px 12px;
+    margin-top: 8px;
+    color: var(--ifm-color-warning-darkest, #7a5c00);
+    background: var(--ifm-color-warning-lightest, #fff8e1);
+    border: 1px solid var(--ifm-color-warning, #f0b429);
+    border-radius: 6px;
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
 .lockedState {
     display: flex;
     align-items: center;

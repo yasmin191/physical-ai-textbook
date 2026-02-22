@@ -1,6 +1,6 @@
 /**
- * Translation service - Client-side translation using Google Translate API
- * For production, consider using a paid API or deploying a backend
+ * Translation service - Client-side translation using multiple free endpoints
+ * with automatic fallback
  */
 
 export interface TranslateResponse {
@@ -21,7 +21,6 @@ interface CacheEntry {
 
 class TranslationService {
   private getCacheKey(content: string, targetLang: string): string {
-    // Simple hash for cache key
     const hash = content.split("").reduce((a, b) => {
       a = (a << 5) - a + b.charCodeAt(0);
       return a & a;
@@ -39,7 +38,6 @@ class TranslationService {
         if (Date.now() - entry.timestamp < CACHE_EXPIRY) {
           return entry.translation;
         }
-        // Remove expired cache
         localStorage.removeItem(key);
       }
     } catch (error) {
@@ -65,51 +63,125 @@ class TranslationService {
     }
   }
 
+  private withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    return Promise.race([
+      promise,
+      new Promise<never>((_, reject) =>
+        setTimeout(() => reject(new Error(`Request timed out after ${ms}ms`)), ms),
+      ),
+    ]);
+  }
+
   /**
-   * Translate using MyMemory free translation API
-   * Free tier: 5000 chars/day, no API key required
+   * Try Google Translate free endpoint
+   */
+  private async translateWithGoogle(
+    text: string,
+    sourceLang: string,
+    targetLang: string,
+  ): Promise<string> {
+    const url = `https://translate.googleapis.com/translate_a/single?client=gtx&sl=${sourceLang}&tl=${targetLang}&dt=t&q=${encodeURIComponent(text)}`;
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`Google Translate failed: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    if (Array.isArray(data) && Array.isArray(data[0])) {
+      const result = data[0]
+        .filter((item: any) => Array.isArray(item) && item[0])
+        .map((item: any[]) => item[0])
+        .join("");
+      if (result && result.trim().length > 0) {
+        return result;
+      }
+    }
+
+    throw new Error("Empty or unexpected Google Translate response");
+  }
+
+  /**
+   * Try MyMemory translation API as fallback
    */
   private async translateWithMyMemory(
     text: string,
+    sourceLang: string,
     targetLang: string,
   ): Promise<string> {
-    // Split text into chunks (MyMemory has 500 char limit per request)
-    const chunks = this.splitIntoChunks(text, 450);
-    const translatedChunks: string[] = [];
+    const langPair = `${sourceLang}|${targetLang}`;
+    const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(text)}&langpair=${langPair}`;
 
-    for (const chunk of chunks) {
-      if (!chunk.trim()) {
-        translatedChunks.push("");
-        continue;
-      }
-
-      const url = `https://api.mymemory.translated.net/get?q=${encodeURIComponent(chunk)}&langpair=en|${targetLang}`;
-
-      try {
-        const response = await fetch(url);
-        const data = await response.json();
-
-        if (data.responseStatus === 200 && data.responseData?.translatedText) {
-          translatedChunks.push(data.responseData.translatedText);
-        } else {
-          // If translation fails, return original
-          translatedChunks.push(chunk);
-        }
-      } catch (error) {
-        console.error("Translation chunk error:", error);
-        translatedChunks.push(chunk);
-      }
-
-      // Small delay to avoid rate limiting
-      await new Promise((resolve) => setTimeout(resolve, 100));
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new Error(`MyMemory failed: ${response.status}`);
     }
 
-    return translatedChunks.join(" ");
+    const data = await response.json();
+
+    if (
+      data.responseStatus === 200 &&
+      data.responseData &&
+      data.responseData.translatedText
+    ) {
+      const translated = data.responseData.translatedText;
+      // MyMemory returns "MYMEMORY WARNING" when limit is hit
+      if (translated.includes("MYMEMORY WARNING")) {
+        throw new Error("MyMemory rate limit reached");
+      }
+      return translated;
+    }
+
+    throw new Error(
+      `MyMemory error: ${data.responseStatus} - ${data.responseData?.translatedText || "unknown"}`,
+    );
+  }
+
+  /**
+   * Translate a single chunk with automatic fallback between providers
+   */
+  private async translateChunk(
+    text: string,
+    sourceLang: string,
+    targetLang: string,
+  ): Promise<string> {
+    // Try Google Translate first (10s timeout)
+    try {
+      const result = await this.withTimeout(
+        this.translateWithGoogle(text, sourceLang, targetLang),
+        10000,
+      );
+      return result;
+    } catch (googleError) {
+      console.warn("Google Translate failed, trying MyMemory:", googleError);
+    }
+
+    // Fallback to MyMemory (10s timeout)
+    try {
+      const result = await this.withTimeout(
+        this.translateWithMyMemory(text, sourceLang, targetLang),
+        10000,
+      );
+      return result;
+    } catch (myMemoryError) {
+      console.warn("MyMemory also failed:", myMemoryError);
+    }
+
+    throw new Error("All translation providers failed");
   }
 
   private splitIntoChunks(text: string, maxLength: number): string[] {
     const chunks: string[] = [];
-    const sentences = text.split(/(?<=[.!?।])\s+/);
+    // Split on sentence-ending punctuation including Urdu ۔ and ؟
+    // Avoid lookbehind for broader browser compatibility
+    const rawParts = text.split(/([.!?।؟۔]+\s*)/);
+    // Re-join punctuation back onto the preceding sentence
+    const sentences: string[] = [];
+    for (let i = 0; i < rawParts.length; i += 2) {
+      const sentence = rawParts[i] + (rawParts[i + 1] || "");
+      if (sentence.trim()) sentences.push(sentence);
+    }
     let currentChunk = "";
 
     for (const sentence of sentences) {
@@ -117,7 +189,6 @@ class TranslationService {
         if (currentChunk) {
           chunks.push(currentChunk.trim());
         }
-        // If single sentence is too long, split by words
         if (sentence.length > maxLength) {
           const words = sentence.split(" ");
           currentChunk = "";
@@ -148,6 +219,7 @@ class TranslationService {
     content: string,
     targetLanguage: string = "ur",
     preserveCode: boolean = true,
+    onProgress?: (current: number, total: number) => void,
   ): Promise<TranslateResponse> {
     // Check local cache first
     const cached = this.getFromCache(content, targetLanguage);
@@ -165,7 +237,6 @@ class TranslationService {
     const codeBlocks: { placeholder: string; code: string }[] = [];
 
     if (preserveCode) {
-      // Replace code blocks with placeholders
       let codeIndex = 0;
       textToTranslate = content.replace(/```[\s\S]*?```|`[^`]+`/g, (match) => {
         const placeholder = `__CODE_BLOCK_${codeIndex}__`;
@@ -175,19 +246,59 @@ class TranslationService {
       });
     }
 
-    // Translate using MyMemory API
-    let translation = await this.translateWithMyMemory(
-      textToTranslate,
-      targetLanguage,
-    );
+    // Use smaller chunks (450 chars) so MyMemory fallback also works
+    const chunks = this.splitIntoChunks(textToTranslate, 450);
+    const translatedChunks: string[] = [];
+    let failedChunks = 0;
+
+    for (const chunk of chunks) {
+      if (!chunk.trim()) {
+        translatedChunks.push("");
+        continue;
+      }
+
+      try {
+        const translated = await this.translateChunk(
+          chunk,
+          "en",
+          targetLanguage,
+        );
+        translatedChunks.push(translated);
+      } catch (error) {
+        console.error("Translation chunk failed (all providers):", error);
+        translatedChunks.push(chunk);
+        failedChunks++;
+      }
+
+      onProgress?.(translatedChunks.length, chunks.filter((c) => c.trim()).length);
+
+      // Small delay between requests to avoid rate limiting
+      if (chunks.length > 1) {
+        await new Promise((resolve) => setTimeout(resolve, 300));
+      }
+    }
+
+    // If ALL chunks failed, throw so the UI shows an error
+    if (
+      failedChunks > 0 &&
+      failedChunks === chunks.filter((c) => c.trim()).length
+    ) {
+      throw new Error(
+        "Translation failed - could not reach translation service. Please check your internet connection and try again.",
+      );
+    }
+
+    let translation = translatedChunks.join(" ");
 
     // Restore code blocks
     for (const { placeholder, code } of codeBlocks) {
       translation = translation.replace(placeholder, code);
     }
 
-    // Save to local cache
-    this.saveToCache(content, targetLanguage, translation);
+    // Only cache if translation was mostly successful
+    if (failedChunks === 0) {
+      this.saveToCache(content, targetLanguage, translation);
+    }
 
     return {
       translation,

@@ -2,19 +2,29 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import translationService from "../../services/translationService";
 import styles from "./styles.module.css";
 
-// Fetch Google TTS audio via a CORS proxy to avoid browser blocking
+// Fetch Google TTS audio — uses Vercel rewrite proxy in production (no CORS issues),
+// falls back to allorigins public proxy for local dev.
 async function fetchUrduAudioBlob(text: string): Promise<string | null> {
-  // Use allorigins CORS proxy to fetch Google TTS mp3
-  const ttsUrl = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=ur&client=tw-ob`;
-  const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(ttsUrl)}`;
-  try {
-    const res = await fetch(proxyUrl);
-    if (!res.ok) return null;
-    const blob = await res.blob();
-    return URL.createObjectURL(blob);
-  } catch {
-    return null;
+  const params = `ie=UTF-8&q=${encodeURIComponent(text)}&tl=ur&client=tw-ob`;
+
+  // Primary: Vercel rewrite proxy (/api/tts forwards to translate.google.com/translate_tts)
+  // Works in production with no CORS headers needed since it's same-origin.
+  const urls = [
+    `/api/tts?${params}`,
+    `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://translate.google.com/translate_tts?${params}`)}`,
+  ];
+
+  for (const url of urls) {
+    try {
+      const res = await fetch(url);
+      if (!res.ok) continue;
+      const blob = await res.blob();
+      if (blob.size > 0) return URL.createObjectURL(blob);
+    } catch {
+      // try next
+    }
   }
+  return null;
 }
 
 interface PodcastPlayerProps {

@@ -3,5 +3,11 @@
   "outputDirectory": "build",
   "installCommand": "npm install",
   "framework": "docusaurus-2",
-  "cleanUrls": true
+  "cleanUrls": true,
+  "rewrites": [
+    {
+      "source": "/api/tts",
+      "destination": "https://translate.google.com/translate_tts"
+    }
+  ]
 }
